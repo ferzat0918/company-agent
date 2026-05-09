@@ -11,6 +11,7 @@ dependencies = [
     "httpx",
     "python-dotenv",
     "pyjwt",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
