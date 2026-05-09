@@ -86,5 +86,37 @@ services:
     volumes:
       - ./kong.yml:/etc/kong/kong.yml
 
+  langgraph:
+    build:
+      context: ../
+      dockerfile: infra/Dockerfile.langgraph
+    container_name: company-agent-langgraph
+    restart: unless-stopped
+    ports:
+      - "2024:2024"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL}
+      POSTGRES_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      SKILLS_DIR: /app/skills
+      PROMPTS_DIR: /app/prompts
+    volumes:
+      - ../skills:/app/skills
+      - ../prompts:/app/prompts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    image: nginx:alpine
+    container_name: company-agent-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ../frontend/agent-chat-ui/out:/usr/share/nginx/html:ro
+    depends_on:
+      - langgraph
+
 volumes:
   postgres-data:
