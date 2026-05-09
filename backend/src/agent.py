@@ -3,6 +3,7 @@ from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from .config import DEEPSEEK_API_KEY, DEEPSEEK_MODEL
 from .skills_loader import get_skills_config, validate_skills
+from .store_setup import create_checkpointer, create_store
 
 # Validate skills on startup
 skill_errors = validate_skills()
@@ -12,6 +13,9 @@ if skill_errors:
         print(f"  - {err}")
 
 skills_dirs = get_skills_config()
+
+checkpointer = create_checkpointer()
+store = create_store()
 
 SUBAGENTS = [
     {
@@ -51,4 +55,6 @@ agent = create_deep_agent(
     subagents=SUBAGENTS,
     skills=skills_dirs,
     backend=FilesystemBackend(root_dir=".", virtual_mode=True),
+    checkpointer=checkpointer,
+    store=store,
 )
