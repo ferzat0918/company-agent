@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: supabase/postgres:latest
+    image: supabase/postgres:latest  # TODO: pin version before production
     container_name: supabase-postgres
     restart: unless-stopped
     ports:
@@ -17,7 +17,7 @@ services:
       start_period: 30s
 
   gotrue:
-    image: supabase/gotrue:latest
+    image: supabase/gotrue:latest  # TODO: pin version before production
     container_name: supabase-gotrue
     restart: unless-stopped
     ports:
@@ -35,7 +35,7 @@ services:
         condition: service_healthy
 
   pgmeta:
-    image: supabase/postgres-meta:latest
+    image: supabase/postgres-meta:latest  # TODO: pin version before production
     container_name: supabase-pgmeta
     restart: unless-stopped
     ports:
@@ -50,9 +50,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   studio:
-    image: supabase/studio:latest
+    image: supabase/studio:latest  # TODO: pin version before production
     container_name: supabase-studio
     restart: unless-stopped
     ports:
@@ -64,10 +70,11 @@ services:
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
     depends_on:
-      - pgmeta
+      pgmeta:
+        condition: service_started
 
   kong:
-    image: supabase/kong:latest
+    image: supabase/kong:latest  # TODO: pin version before production
     container_name: supabase-kong
     restart: unless-stopped
     ports:

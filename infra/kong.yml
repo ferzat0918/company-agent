@@ -1,0 +1,32 @@
+# Kong 声明式配置 — Supabase API 网关
+# 开发阶段最小配置。生产环境需添加认证、限流、日志等插件。
+_format_version: "3.0"
+
+services:
+  - name: auth-service
+    url: http://gotrue:9999
+    routes:
+      - name: auth-route
+        paths:
+          - /auth/v1
+
+  - name: rest-service
+    url: http://pgmeta:8080
+    routes:
+      - name: rest-route
+        paths:
+          - /rest/v1
+
+  - name: storage-service
+    url: http://gotrue:9999
+    routes:
+      - name: storage-route
+        paths:
+          - /storage/v1
+
+  - name: realtime-service
+    url: http://gotrue:9999
+    routes:
+      - name: realtime-route
+        paths:
+          - /realtime/v1
