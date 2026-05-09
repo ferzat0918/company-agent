@@ -84,12 +84,12 @@ MVP 4 个部门 SubAgent 同时上线（marketing / hr / tob / content），但*
         ▼                                            ▼
 ┌─────────────────────────────┐               ┌──────────────────┐
 │  Supabase Self-Hosted       │               │  Skills（git 仓库）│
-│  · auth.users               │               │  /skills/         │
+│  · auth.users               │               │  /skills/（全部平铺）   │
 │  · public.profiles          │               │   ├ common/      │
-│    (user_id, dept, role,    │               │   ├ marketing/   │
+│    (user_id, dept, role,    │               │   ├ copywriting-cn/   │
 │     region) + RLS           │               │   ├ hr/          │
-│  · public.checkpoints       │               │   ├ tob/         │
-│  · public.checkpoint_writes │               │   └ content/     │
+│  · public.checkpoints       │               │   ├ employee-handbook/   │
+│  · public.checkpoint_writes │               │   └ ...
 │  · public.store (LangGraph) │               │  每个 skill 文件夹：│
 └─────────────────────────────┘               │  SKILL.md +      │
                                               │  reference.md … │
@@ -208,46 +208,59 @@ marketing-  hr-       tob-      content-
 
 ## 5. Skill 体系
 
-### 5.1 目录结构（全部按需加载）
+### 5.1 目录结构（全部按需加载 → 平铺）
+
+**SkillsMiddleware 只扫描根目录的直接子文件夹作为 skill**，不支持嵌套发现。因此所有 skill 平铺在 `/skills/` 下，部门归属通过 frontmatter 字段实现：
 
 ```
-/skills/
-├── common/                    ← 跨部门共享
-│   ├── brand-deep-dive/       品牌完整手册
-│   ├── vi-guidelines/         完整 VI 规范
-│   └── product-handbook/      产品详情
-│
-├── marketing/
-│   ├── copywriting-cn/        大陆文案（按平台拆子文件）
-│   ├── copywriting-overseas/  海外文案
-│   ├── compliance-redlines/   广告法 + 平台政策红线
-│   └── campaign-templates/    活动 SOP
-│
-├── hr/
-│   ├── employee-handbook/
-│   ├── compensation/          （前期靠 prompt 限定权限）
-│   ├── recruiting/
-│   └── internal-comms/
-│
-├── tob/
-│   ├── sales-sop/
-│   ├── case-studies/
-│   ├── pricing/               （同上）
-│   ├── proposal-templates/
-│   └── competitor-analysis/
-│
-└── content/
-    ├── content-strategy/
-    ├── platform-rules/
-    ├── shooting-editing/
-    └── viral-references/
+/skills/                          ← SkillsMiddleware 扫描此目录
+├── brand-deep-dive/              #
+│   └── SKILL.md                  # department: common
+├── vi-guidelines/                #
+│   └── SKILL.md                  # department: common
+├── product-handbook/             #
+│   └── SKILL.md                  # department: common
+├── copywriting-cn/               #
+│   └── SKILL.md                  # department: marketing
+├── copywriting-overseas/         #
+│   └── SKILL.md                  # department: marketing
+├── compliance-redlines/          #
+│   └── SKILL.md                  # department: marketing
+├── campaign-templates/           #
+│   └── SKILL.md                  # department: marketing
+├── employee-handbook/            #
+│   └── SKILL.md                  # department: hr
+├── compensation/                 #
+│   └── SKILL.md                  # department: hr
+├── recruiting/                   #
+│   └── SKILL.md                  # department: hr
+├── internal-comms/               #
+│   └── SKILL.md                  # department: hr
+├── sales-sop/                    #
+│   └── SKILL.md                  # department: tob
+├── case-studies/                 #
+│   └── SKILL.md                  # department: tob
+├── pricing/                      #
+│   └── SKILL.md                  # department: tob
+├── proposal-templates/           #
+│   └── SKILL.md                  # department: tob
+├── competitor-analysis/          #
+│   └── SKILL.md                  # department: tob
+├── content-strategy/             #
+│   └── SKILL.md                  # department: content
+├── platform-rules/               #
+│   └── SKILL.md                  # department: content
+├── shooting-editing/             #
+│   └── SKILL.md                  # department: content
+└── viral-references/             #
+    └── SKILL.md                  # department: content
 ```
 
 ### 5.2 SKILL.md 范例
 
 > **注**：以下范例为 skill 完整成熟态的结构演示（含子文件引用）。**MVP 阶段每个 skill 仅有 SKILL.md，无子文件**（见 §5.4）；范例中的 `platforms/*.md` 与 `examples/` 仅在二期 skill 扩展时出现。
 
-`/skills/marketing/copywriting-cn/SKILL.md`：
+`/skills/copywriting-cn/SKILL.md`：
 
 ```markdown
 ---
@@ -255,6 +268,7 @@ name: copywriting-cn
 description: 大陆市场文案写作。用于小红书、微信公众号、抖音、视
   频号等中文平台的推广文案、社媒帖文、广告语、邮件 EDM 撰写。
   覆盖各平台调性差异、内容范式和广告法合规检查。
+department: marketing
 ---
 
 # 大陆市场文案写作
@@ -266,7 +280,7 @@ description: 大陆市场文案写作。用于小红书、微信公众号、抖�
 ## 写作流程
 1. 确认平台（不明则追问）
 2. 加载平台子文件（platforms/{xiaohongshu,wechat-public,douyin}.md）
-3. 加载产品信息（common/product-handbook 对应章节）
+3. 加载产品信息（product-handbook 对应章节）
 4. 成稿前检查 compliance-redlines
 
 ## 调性原则
@@ -287,10 +301,13 @@ description: 大陆市场文案写作。用于小红书、微信公众号、抖�
 
 ### 5.3 frontmatter 规范
 
-| 字段 | 规则 |
-|---|---|
-| `name` | 短横线小写，全局唯一，建议 `{部门}-{动作}` 形式 |
-| `description` | **关键，决定召回准确率**。动词开头，列出"用于 X、Y、Z" 场景，50–150 字 |
+| 字段 | 必填 | 规则 |
+|---|---|---|
+| `name` | 是 | 短横线小写，全局唯一 |
+| `description` | 是 | **关键，决定召回准确率**。动词开头，列出"用于 X、Y、Z" 场景，50–150 字 |
+| `department` | 是 | skill 所属部门：`common` / `marketing` / `hr` / `tob` / `content`。Supervisor 和 SubAgent 据此过滤可见性 |
+
+> **部门归属由 frontmatter 的 `department` 字段、而非目录层次决定。** 所有 skill 文件夹平铺在同一层，`department` 字段让 Supervisor 或 SubAgent 按需限定可见性（例如只向 marketing-agent 暴露 `department: marketing` 的 skill）。
 
 ### 5.4 内容产出策略
 

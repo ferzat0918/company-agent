@@ -20,12 +20,14 @@
 ## 目录约定
 
 ```
-/skills/      # Agent Skills（按需加载）
+/skills/      # Agent Skills（按需加载，顶层平铺）
 /prompts/     # System Prompt 模板（始终在线）
 /backend/     # LangGraph Server 代码
 /frontend/    # Agent Chat UI fork
 /docs/        # 设计文档与规范
 /infra/       # docker-compose / 部署脚本
 ```
+
+**Skill 结构重要说明**：所有 skill 文件夹平铺在 `/skills/` 下一层（SkillsMiddleware 只扫描直接子文件夹），部门归属通过 SKILL.md frontmatter 的 `department` 字段定义，不由目录层次决定。详见 `docs/superpowers/specs/2026-05-09-company-agent-design.md` §5。
 
 具体内容随实施阶段填充。
