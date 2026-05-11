@@ -12,7 +12,7 @@ import {
   DO_NOT_RENDER_ID_PREFIX,
   ensureToolCallsHaveResponses,
 } from "@/lib/ensure-tool-responses";
-import { LangGraphLogoSVG } from "../icons/langgraph";
+import { UmxSymbol } from "../icons/umx-logo";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import {
   ArrowDown,
@@ -77,12 +77,16 @@ function ScrollToBottom(props: { className?: string }) {
   if (isAtBottom) return null;
   return (
     <Button
-      variant="outline"
-      className={props.className}
+      variant="secondary"
+      size="sm"
+      className={cn(
+        "border border-[var(--umx-line)] bg-[var(--umx-bg-2)] text-[var(--umx-silver)] hover:bg-[var(--umx-bg-3)] hover:text-[var(--umx-white)]",
+        props.className,
+      )}
       onClick={() => scrollToBottom()}
     >
-      <ArrowDown className="h-4 w-4" />
-      <span>Scroll to bottom</span>
+      <ArrowDown className="h-3.5 w-3.5" />
+      <span>SCROLL TO BOTTOM</span>
     </Button>
   );
 }
@@ -257,9 +261,16 @@ export function Thread() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
+      {/* 欢迎态全屏点阵 — 放在外层避免 motion.div 的 transform 影响 fixed 定位 */}
+      {!chatStarted && (
+        <div
+          aria-hidden
+          className="umx-dot-grid-screen pointer-events-none fixed inset-0 z-0"
+        />
+      )}
       <div className="relative hidden lg:flex">
         <motion.div
-          className="absolute z-20 h-full overflow-hidden border-r bg-white"
+          className="absolute z-20 h-full overflow-hidden border-r border-[var(--umx-line)] bg-[var(--umx-bg-1)]"
           style={{ width: 300 }}
           animate={
             isLargeScreen
@@ -313,7 +324,6 @@ export function Thread() {
               <div>
                 {(!chatHistoryOpen || !isLargeScreen) && (
                   <Button
-                    className="hover:bg-gray-100"
                     variant="ghost"
                     onClick={() => setChatHistoryOpen((p) => !p)}
                   >
@@ -336,8 +346,8 @@ export function Thread() {
                 <div className="absolute left-0 z-10">
                   {(!chatHistoryOpen || !isLargeScreen) && (
                     <Button
-                      className="hover:bg-gray-100"
                       variant="ghost"
+                      size="icon"
                       onClick={() => setChatHistoryOpen((p) => !p)}
                     >
                       {chatHistoryOpen ? (
@@ -349,7 +359,7 @@ export function Thread() {
                   )}
                 </div>
                 <motion.button
-                  className="flex cursor-pointer items-center gap-2"
+                  className="flex cursor-pointer items-center gap-2 text-[var(--umx-white)]"
                   onClick={() => setThreadId(null)}
                   animate={{
                     marginLeft: !chatHistoryOpen ? 48 : 0,
@@ -360,12 +370,9 @@ export function Thread() {
                     damping: 30,
                   }}
                 >
-                  <LangGraphLogoSVG
-                    width={32}
-                    height={32}
-                  />
-                  <span className="text-xl font-semibold tracking-tight">
-                    Agent Chat
+                  <UmxSymbol size={28} className="text-[var(--umx-white)]" />
+                  <span className="font-display text-base font-bold uppercase tracking-[0.16em]">
+                    UMX · COMPANY AGENT
                   </span>
                 </motion.button>
               </div>
@@ -392,7 +399,7 @@ export function Thread() {
           <StickToBottom className="relative flex-1 overflow-hidden">
             <StickyToBottomContent
               className={cn(
-                "absolute inset-0 overflow-y-scroll px-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-transparent",
+                "absolute inset-0 overflow-y-scroll px-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-[var(--umx-line-strong)] [&::-webkit-scrollbar-track]:bg-transparent",
                 !chatStarted && "mt-[25vh] flex flex-col items-stretch",
                 chatStarted && "grid grid-rows-[1fr_auto]",
               )}
@@ -433,13 +440,28 @@ export function Thread() {
                 </>
               }
               footer={
-                <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-white">
+                <div
+                  className={cn(
+                    "sticky bottom-0 flex flex-col items-center gap-8",
+                    chatStarted && "bg-[var(--umx-bg-0)]",
+                  )}
+                >
                   {!chatStarted && (
-                    <div className="flex items-center gap-3">
-                      <LangGraphLogoSVG className="h-8 flex-shrink-0" />
-                      <h1 className="text-2xl font-semibold tracking-tight">
-                        Agent Chat
-                      </h1>
+                    <div className="relative z-10 flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-2">
+                      <div className="flex items-center gap-4">
+                        <UmxSymbol size={56} className="text-[var(--umx-white)]" />
+                        <div className="flex flex-col items-start">
+                          <h1 className="font-display text-3xl font-bold uppercase tracking-[0.04em] leading-none text-[var(--umx-white)]">
+                            COMPANY AGENT
+                          </h1>
+                          <span className="mt-2 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--umx-text-dim)]">
+                            UMX · FUTURISM / RETRO-FUTURISM
+                          </span>
+                        </div>
+                      </div>
+                      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)]">
+                        ▾ 描述你的任务 — 我会路由到合适的部门 SubAgent
+                      </p>
                     </div>
                   )}
 
@@ -448,10 +470,10 @@ export function Thread() {
                   <div
                     ref={dropRef}
                     className={cn(
-                      "bg-muted relative z-10 mx-auto mb-8 w-full max-w-3xl rounded-2xl shadow-xs transition-all",
+                      "relative z-10 mx-auto mb-8 w-full max-w-3xl rounded-[2px] bg-[var(--umx-bg-1)] transition-all",
                       dragOver
-                        ? "border-primary border-2 border-dotted"
-                        : "border border-solid",
+                        ? "border-2 border-dotted border-[var(--umx-acid)]"
+                        : "border border-solid border-[var(--umx-line)]",
                     )}
                   >
                     <form
@@ -479,8 +501,8 @@ export function Thread() {
                             form?.requestSubmit();
                           }
                         }}
-                        placeholder="Type your message..."
-                        className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
+                        placeholder="描述你的任务…"
+                        className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 text-[var(--umx-white)] placeholder:text-[var(--umx-text-dim)] shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
                       />
 
                       <div className="flex items-center gap-6 p-2 pt-4">
@@ -493,9 +515,9 @@ export function Thread() {
                             />
                             <Label
                               htmlFor="render-tool-calls"
-                              className="text-sm text-gray-600"
+                              className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)]"
                             >
-                              Hide Tool Calls
+                              HIDE TOOL CALLS
                             </Label>
                           </div>
                         </div>
@@ -503,9 +525,9 @@ export function Thread() {
                           htmlFor="file-input"
                           className="flex cursor-pointer items-center gap-2"
                         >
-                          <Plus className="size-5 text-gray-600" />
-                          <span className="text-sm text-gray-600">
-                            Upload PDF or Image
+                          <Plus className="size-5 text-[var(--umx-text-dim)]" />
+                          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)]">
+                            UPLOAD PDF OR IMAGE
                           </span>
                         </Label>
                         <input
@@ -519,6 +541,7 @@ export function Thread() {
                         {stream.isLoading ? (
                           <Button
                             key="stop"
+                            variant="outline"
                             onClick={() => stream.stop()}
                             className="ml-auto"
                           >
@@ -528,13 +551,14 @@ export function Thread() {
                         ) : (
                           <Button
                             type="submit"
-                            className="ml-auto shadow-md transition-all"
+                            variant="acid"
+                            className="ml-auto"
                             disabled={
                               isLoading ||
                               (!input.trim() && contentBlocks.length === 0)
                             }
                           >
-                            Send
+                            Send →
                           </Button>
                         )}
                       </div>

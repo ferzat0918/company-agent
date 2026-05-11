@@ -3,7 +3,7 @@ import os
 import glob
 import yaml
 
-SKILLS_DIR = os.getenv("SKILLS_DIR", os.path.abspath("../skills"))
+SKILLS_DIR = os.getenv("SKILLS_DIR", "skills")
 
 def get_skills_config():
     return [SKILLS_DIR]

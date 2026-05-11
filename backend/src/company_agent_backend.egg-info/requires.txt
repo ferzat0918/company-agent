@@ -1,0 +1,12 @@
+langchain>=1.0.0
+langgraph>=0.4.0
+langgraph-checkpoint-postgres>=0.1.0
+deepagents>=0.5.0
+langchain-deepseek>=0.1.0
+httpx
+python-dotenv
+pyjwt
+
+[dev]
+pytest>=7.0
+pytest-asyncio

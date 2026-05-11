@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company Agent — 产品体验 Walkthrough</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e1a;
+  --bg-sidebar: #0d1117;
+  --bg-chat: #111827;
+  --bg-input: #1a1f2e;
+  --bg-bubble-user: #1e3a5f;
+  --bg-bubble-ai: #1a1f2e;
+  --bg-card: rgba(17, 24, 39, 0.8);
+  --border: rgba(255,255,255,0.08);
+  --border-active: rgba(59,130,246,0.4);
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-green: #10b981;
+  --accent-pink: #ec4899;
+  --accent-orange: #f59e0b;
+  --accent-cyan: #06b6d4;
+  --gradient: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh; overflow: hidden;
+  display: flex;
+}
+
+/* ===== ONBOARDING OVERLAY ===== */
+.onboarding-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+}
+.onboarding-card {
+  background: var(--bg-chat); border: 1px solid var(--border);
+  border-radius: 16px; padding: 40px; max-width: 480px; width: 90%;
+  text-align: center;
+}
+.onboarding-card h2 {
+  font-size: 28px; font-weight: 800; margin-bottom: 8px;
+}
+.onboarding-card h2 .gradient {
+  background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.onboarding-card .sub {
+  font-size: 14px; color: var(--text-secondary); margin-bottom: 28px;
+}
+.persona-list {
+  display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;
+}
+.persona-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px; border-radius: var(--radius);
+  border: 1px solid var(--border); cursor: pointer;
+  transition: all 0.2s; text-align: left; background: rgba(255,255,255,0.02);
+}
+.persona-card:hover { border-color: var(--border-active); background: rgba(59,130,246,0.06); }
+.persona-card.selected { border-color: var(--accent); background: rgba(59,130,246,0.1); }
+.persona-card .p-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700;
+}
+.persona-card .p-info .p-name { font-size: 15px; font-weight: 600; }
+.persona-card .p-info .p-role { font-size: 12px; color: var(--text-muted); }
+.btn-start {
+  display: inline-block; padding: 12px 40px; border-radius: 10px;
+  background: var(--gradient); color: #fff; font-weight: 600; font-size: 15px;
+  border: none; cursor: pointer; transition: opacity 0.2s; font-family: inherit;
+}
+.btn-start:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-start:hover:not(:disabled) { opacity: 0.9; }
+
+/* ===== LAYOUT ===== */
+.app { display: flex; width: 100%; height: 100vh; }
+.app.hidden { display: none; }
+
+/* Sidebar */
+.sidebar {
+  width: 280px; flex-shrink: 0; background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 20px;
+}
+.sidebar-logo {
+  font-size: 18px; font-weight: 700; margin-bottom: 24px;
+  background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.sidebar-section { margin-bottom: 20px; }
+.sidebar-section .s-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 2px; color: var(--text-muted); margin-bottom: 8px;
+}
+.sidebar-user {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+}
+.sidebar-user .avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.sidebar-user .u-info .u-name { font-size: 14px; font-weight: 600; }
+.sidebar-user .u-info .u-dept { font-size: 12px; color: var(--text-muted); }
+
+.skill-status {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.skill-indicator {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 6px;
+  font-size: 12px; color: var(--text-muted);
+}
+.skill-indicator .dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.skill-indicator .dot.off { background: var(--text-muted); opacity: 0.4; }
+.skill-indicator .dot.on { background: var(--accent-green); box-shadow: 0 0 8px rgba(16,185,129,0.5); }
+.skill-indicator .dot.loading {
+  background: var(--accent-orange); animation: pulse-dot 0.8s infinite;
+}
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* Chat area */
+.chat-area {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+  background: var(--bg-chat);
+}
+.chat-header {
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chat-header .thread-title {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-secondary);
+}
+.chat-header .badge {
+  font-size: 11px; padding: 3px 10px; border-radius: 20px;
+  background: rgba(59,130,246,0.15); color: var(--accent);
+}
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 24px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.chat-input-area {
+  padding: 16px 24px; border-top: 1px solid var(--border);
+  display: flex; gap: 10px;
+}
+.chat-input-area input {
+  flex: 1; padding: 12px 16px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg-input);
+  color: var(--text); font-family: inherit; font-size: 14px;
+  outline: none; transition: border-color 0.2s;
+}
+.chat-input-area input:focus { border-color: var(--accent); }
+.chat-input-area button {
+  padding: 12px 20px; border-radius: 10px; border: none;
+  background: var(--gradient); color: #fff; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  transition: opacity 0.2s;
+}
+.chat-input-area button:hover { opacity: 0.9; }
+
+/* Bubbles */
+.message {
+  display: flex; gap: 12px; max-width: 720px;
+  animation: msgIn 0.35s ease;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.message.user { align-self: flex-end; flex-direction: row-reverse; }
+.message.user .bubble { background: var(--bg-bubble-user); border-radius: 16px 16px 4px 16px; }
+.message.ai .bubble { background: var(--bg-bubble-ai); border-radius: 16px 16px 16px 4px; border: 1px solid var(--border); }
+.bubble {
+  padding: 12px 18px; font-size: 14px; line-height: 1.7; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+.bubble p { margin-bottom: 6px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble ul { margin: 6px 0; padding-left: 18px; }
+.bubble li { margin-bottom: 4px; color: var(--text-secondary); }
+.bubble strong { color: var(--text); }
+.bubble em { color: var(--accent-cyan); font-style: normal; }
+.bubble code {
+  background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+}
+
+.system-msg {
+  align-self: center; font-size: 11px; color: var(--text-muted);
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.system-msg .sys-tag {
+  font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
+}
+.sys-tag.route { background: rgba(139,92,246,0.2); color: var(--accent-purple); }
+.sys-tag.skill { background: rgba(16,185,129,0.2); color: var(--accent-green); }
+.sys-tag.memory { background: rgba(245,158,11,0.2); color: var(--accent-orange); }
+.sys-tag.todo { background: rgba(59,130,246,0.2); color: var(--accent); }
+
+.thinking-dots {
+  display: inline-flex; gap: 4px; padding: 8px 0;
+}
+.thinking-dots span {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted);
+  animation: dotBounce 1.4s infinite;
+}
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotBounce { 0%,80%,100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1.2); } }
+
+/* Suggested prompts */
+.suggested-prompts {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+}
+.suggested-prompts button {
+  padding: 8px 14px; border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary);
+  font-family: inherit; font-size: 12px; cursor: pointer;
+  transition: all 0.2s;
+}
+.suggested-prompts button:hover {
+  border-color: var(--accent); color: var(--text); background: rgba(59,130,246,0.08);
+}
+
+/* Scrollbar */
+.chat-messages::-webkit-scrollbar { width: 6px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+/* Responsive */
+@media (max-width: 720px) {
+  .sidebar { display: none; }
+  .message { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== ONBOARDING ===== -->
+<div class="onboarding-overlay" id="onboarding">
+  <div class="onboarding-card">
+    <h2>欢迎使用 <span class="gradient">Company Agent</span></h2>
+    <p class="sub">公司内部智能助手 — 请选择你的身份开始体验</p>
+    <div class="persona-list">
+      <div class="persona-card" data-persona="marketing-cn" onclick="selectPersona(this)">
+        <div class="p-avatar" style="background:rgba(236,72,153,0.15);color:var(--accent-pink);">M</div>
+        <div class="p-info">
+          <div class="p-name">小林 — 营销经理</div>
+          <div class="p-role">Marketing · 大陆市场 · 文案 & 社媒运营</div>
+        </div>
+      </div>
+      <div class="persona-card" data-persona="hr" onclick="selectPersona(this)">
+        <div class="p-avatar" style="background:rgba(16,185,129,0.15);color:var(--accent-green);">H</div>
+        <div class="p-info">
+          <div class="p-name">李姐 — HR 主管</div>
+          <div class="p-role">Human Resources · 招聘 & 员工关系</div>
+        </div>
+      </div>
+      <div class="persona-card" data-persona="marketing-overseas" onclick="selectPersona(this)">
+        <div class="p-avatar" style="background:rgba(6,182,212,0.15);color:var(--accent-cyan);">A</div>
+        <div class="p-info">
+          <div class="p-name">Alex — 海外市场</div>
+          <div class="p-role">Marketing · 海外市场 · Instagram / Email</div>
+        </div>
+      </div>
+      <div class="persona-card" data-persona="content" onclick="selectPersona(this)">
+        <div class="p-avatar" style="background:rgba(245,158,11,0.15);color:var(--accent-orange);">C</div>
+        <div class="p-info">
+          <div class="p-name">小陈 — 内容编导</div>
+          <div class="p-role">Content · 选题策划 & 拍摄剪辑</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-start" id="btnStart" disabled onclick="startExperience()">进入体验</button>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div class="app hidden" id="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-logo">Company Agent</div>
+
+    <div class="sidebar-section">
+      <div class="s-label">当前身份</div>
+      <div class="sidebar-user" id="sidebarUser"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="s-label">Agent 状态</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--accent-green);display:inline-block;"></span>
+          Supervisor 在线
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--accent-green);display:inline-block;"></span>
+          <span id="activeSubAgent">等待路由...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="s-label">已加载 Skill</div>
+      <div class="skill-status" id="skillStatus">
+        <div class="skill-indicator"><span class="dot off"></span> 尚未加载</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="s-label">长期记忆</div>
+      <div id="memoryPreview" style="font-size:12px;color:var(--text-muted);">
+        暂无记录
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <div class="chat-header">
+      <div class="thread-title" id="threadTitle">新对话</div>
+      <span class="badge" id="regionBadge">大陆</span>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-area">
+      <input type="text" id="chatInput" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter')sendMessage()" />
+      <button onclick="sendMessage()">发送</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+let state = {
+  persona: null,
+  loadedSkills: [],
+  activeSubAgent: null,
+  memory: {},
+  messageCount: 0
+};
+
+// ===== PERSONA DATA =====
+const personas = {
+  'marketing-cn': {
+    name: '小林', dept: 'marketing', role: '营销经理', region: 'cn',
+    avatar: 'M', avatarBg: 'rgba(236,72,153,0.15)', avatarColor: 'var(--accent-pink)',
+    subAgent: 'marketing-agent',
+    departmentName: 'Marketing 营销部',
+    greeting: '你好！我是你的 AI 助手，已识别你的身份为营销部大陆市场负责人。随时可以帮你写文案、策划活动、检查合规。有什么需要？'
+  },
+  'hr': {
+    name: '李姐', dept: 'hr', role: 'HR 主管', region: null,
+    avatar: 'H', avatarBg: 'rgba(16,185,129,0.15)', avatarColor: 'var(--accent-green)',
+    subAgent: 'hr-agent',
+    departmentName: 'HR 人力资源部',
+    greeting: '你好！已认证你的 HR 主管身份。需要起草内部公告、招聘话术、培训材料，还是查询员工手册？请随时告诉我。'
+  },
+  'marketing-overseas': {
+    name: 'Alex', dept: 'marketing', role: '海外市场经理', region: 'overseas',
+    avatar: 'A', avatarBg: 'rgba(6,182,212,0.15)', avatarColor: 'var(--accent-cyan)',
+    subAgent: 'marketing-agent',
+    departmentName: 'Marketing 营销部（海外）',
+    greeting: 'Hi! I\'ve identified you as the overseas marketing lead. I can help with English copywriting, Instagram/Twitter posts, email campaigns, and brand compliance. What would you like to work on?'
+  },
+  'content': {
+    name: '小陈', dept: 'content', role: '内容编导', region: 'cn',
+    avatar: 'C', avatarBg: 'rgba(245,158,11,0.15)', avatarColor: 'var(--accent-orange)',
+    subAgent: 'content-agent',
+    departmentName: 'Content 内容部',
+    greeting: '你好！已确认你的内容编导身份。需要帮你做选题策划、分镜脚本、还是查询各平台规范？直接说就行。'
+  }
+};
+
+let persona;
+
+// ===== ONBOARDING =====
+function selectPersona(el) {
+  document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('btnStart').disabled = false;
+}
+
+function startExperience() {
+  const selected = document.querySelector('.persona-card.selected');
+  if (!selected) return;
+  const key = selected.dataset.persona;
+  persona = personas[key];
+  state.persona = key;
+  state.loadedSkills = [];
+  state.activeSubAgent = null;
+  state.memory = {};
+  state.messageCount = 0;
+
+  // Hide onboarding
+  document.getElementById('onboarding').style.display = 'none';
+  document.getElementById('app').classList.remove('hidden');
+
+  // Setup sidebar
+  const userEl = document.getElementById('sidebarUser');
+  userEl.innerHTML = `
+    <div class="avatar" style="background:${persona.avatarBg};color:${persona.avatarColor};">${persona.avatar}</div>
+    <div class="u-info">
+      <div class="u-name">${persona.name}</div>
+      <div class="u-dept">${persona.role} · ${persona.departmentName}</div>
+    </div>
+  `;
+  document.getElementById('regionBadge').textContent = persona.region === 'overseas' ? '海外' : (persona.region === 'cn' ? '大陆' : '通用');
+  document.getElementById('regionBadge').className = 'badge';
+  document.getElementById('threadTitle').textContent = '新对话';
+  document.getElementById('activeSubAgent').textContent = '等待路由...';
+  document.getElementById('skillStatus').innerHTML = '<div class="skill-indicator"><span class="dot off"></span> 尚未加载</div>';
+  document.getElementById('memoryPreview').textContent = '暂无记录';
+
+  // Clear chat
+  document.getElementById('chatMessages').innerHTML = '';
+
+  // Greeting
+  addMessage('ai', persona.greeting);
+
+  // Suggested prompts
+  addSuggestedPrompts();
+}
+
+// ===== CHAT =====
+function addMessage(role, text, delay = 0) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'message ' + role;
+  const avatarHtml = role === 'user'
+    ? `<div class="avatar" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:${persona.avatarBg};color:${persona.avatarColor};">${persona.avatar}</div>`
+    : `<div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(139,92,246,0.2));">🤖</div>`;
+  div.innerHTML = avatarHtml + `<div class="bubble">${text}</div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function addSystemMsg(tag, tagClass, text) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'system-msg';
+  div.innerHTML = `<span class="sys-tag ${tagClass}">${tag}</span> ${text}`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function showThinking(duration) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'message ai';
+  div.id = 'thinking-msg';
+  div.innerHTML = `<div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:linear-gradient(135deg,rgba(59,130,246,0.2),rgba(139,92,246,0.2));">🤖</div><div class="bubble"><div class="thinking-dots"><span></span><span></span><span></span></div></div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return new Promise(resolve => setTimeout(() => {
+    const el = document.getElementById('thinking-msg');
+    if (el) el.remove();
+    resolve();
+  }, duration));
+}
+
+function addSuggestedPrompts() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'suggested-prompts';
+  div.id = 'suggested-prompts';
+
+  let prompts = [];
+  switch (state.persona) {
+    case 'marketing-cn':
+      prompts = ['帮我写一篇小红书种草文案，产品是新款智能手表', '检查这段文案有没有广告法问题', '给我一个双十一活动策划框架', '帮我写个微信公众号推文'];
+      break;
+    case 'hr':
+      prompts = ['帮我起草一份新员工入职通知', '写一段招聘产品经理的 JD', '员工手册里关于年假的规定是什么', '帮我写一份内部培训通知'];
+      break;
+    case 'marketing-overseas':
+      prompts = ['Write an Instagram post for our new tech product', 'Draft a marketing email for US customers', 'Check if this copy aligns with our brand voice', 'Create a Black Friday campaign outline'];
+      break;
+    case 'content':
+      prompts = ['帮我策划一期关于 AI 工具的短视频选题', '写一个 60 秒抖音口播脚本', '小红书 B 站 抖音 — 同一个选题怎么差异化', '拍摄产品的分镜脚本怎么写'];
+      break;
+  }
+
+  div.innerHTML = prompts.map(p => `<button onclick="quickPrompt('${p.replace(/'/g, "\\'")}')">${p}</button>`).join('');
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeSuggestedPrompts() {
+  const el = document.getElementById('suggested-prompts');
+  if (el) el.remove();
+}
+
+function quickPrompt(text) {
+  removeSuggestedPrompts();
+  addMessage('user', text);
+  state.messageCount++;
+  handleUserMessage(text);
+}
+
+function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  removeSuggestedPrompts();
+  addMessage('user', text);
+  state.messageCount++;
+  handleUserMessage(text);
+}
+
+// ===== CORE: HANDLE USER MESSAGE =====
+async function handleUserMessage(text) {
+  const lower = text.toLowerCase();
+
+  // --- PERSONA: marketing-cn ---
+  if (state.persona === 'marketing-cn') {
+    // Detect vague request
+    if (/^帮我写(个|一|一下)?(东西|文案|内容)?\s*$/.test(lower) || lower === '帮我写' || lower === '写个东西') {
+      await showThinking(800);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → 信息不足，触发追问');
+      addMessage('ai', '你想写什么类型的内容？比如：\n\n• 小红书种草笔记\n• 微信公众号推文\n• 抖音短视频脚本\n• 广告语 / Slogan\n• 邮件 EDM\n\n另外，是哪个产品？目标人群是谁？告诉我更多细节我好帮你。');
+      return;
+    }
+
+    // Detect xiaohongshu
+    if (lower.includes('小红书') || lower.includes('种草')) {
+      await showThinking(1000);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → marketing-agent');
+      updateActiveSubAgent('marketing-agent');
+      addSystemMsg('SKILL', 'skill', '加载 copywriting-cn');
+      addSkillToSidebar('copywriting-cn', '大陆文案写作');
+      await showThinking(600);
+      addSystemMsg('SKILL', 'skill', '加载 product-handbook');
+      addSkillToSidebar('product-handbook', '产品手册');
+      await showThinking(400);
+      addSystemMsg('SKILL', 'skill', '加载 compliance-redlines（自检）');
+      addSkillToSidebar('compliance-redlines', '广告法红线');
+
+      // Simulate memory
+      if (state.memory['writing_preference']) {
+        addSystemMsg('MEMORY', 'memory', '读取偏好：' + state.memory['writing_preference']);
+      }
+
+      addMessage('ai', `好的，我来帮你写这篇小红书种草文案 ✍️
+
+---
+
+<strong>📱 标题：</strong>学生党闭眼入！这款智能手表，用了一个月真香了😭
+
+<strong>正文：</strong>
+
+姐妹们！开学前入的这款手表真的绝了，用了一个月来交作业 📝
+
+<strong>① 颜值天花板</strong>
+雾面铝合金表壳 + 亲肤硅胶表带，上课戴一天完全不闷。莫兰迪色系三个配色都很好搭衣服，我选了灰绿色，被好多人问链接…
+
+<strong>② 功能不鸡肋</strong>
+· 心率 / 血氧 / 睡眠监测 — 熬夜党的救命稻草
+· 运动模式 30+ 种 — 操场跑步自动识别
+· 消息提醒 / 付款码 — 图书馆不用掏手机
+· 续航 7 天 — 一周一充，不用焦虑
+
+<strong>③ 学生党友好</strong>
+价格 399，差不多一顿火锅钱，却能陪你四年大学。而且表盘市场免费，每天换一款心情都变好 ✨
+
+---
+
+<em>✅ 已通过广告法合规自检（无极限词）</em>
+
+需要调整语气或者改成其他平台吗？`);
+      saveMemory('writing_preference', '小红书：种草风、口语化、emoji丰富、学生党视角');
+      return;
+    }
+
+    // Detect compliance check
+    if (lower.includes('广告法') || lower.includes('合规') || lower.includes('检查') || lower.includes('极限词')) {
+      await showThinking(800);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → marketing-agent');
+      updateActiveSubAgent('marketing-agent');
+      addSystemMsg('SKILL', 'skill', '加载 compliance-redlines');
+      addSkillToSidebar('compliance-redlines', '广告法红线');
+      addMessage('ai', `好的，我来帮你做合规检查 🔍
+
+请把文案贴给我，我会逐项检查以下红线：
+
+<strong>广告法极限词：</strong>
+• 禁用：最好、第一、唯一、顶级、极致、全网最低、100%、绝对……
+• 需凭证：销量第一、领先、首家……（需提供证明）
+
+<strong>平台特殊规则：</strong>
+• 小红书：禁止导流外链、禁止夸大功效
+• 抖音：禁止诱导点赞关注、禁止虚假促销
+• 公众号：禁止标题党、禁止未标注广告
+
+直接贴文案过来吧！`);
+      return;
+    }
+
+    // Detect campaign
+    if (lower.includes('活动') || lower.includes('策划') || lower.includes('双十一') || lower.includes('促销')) {
+      await showThinking(1200);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → marketing-agent');
+      updateActiveSubAgent('marketing-agent');
+      addSystemMsg('TODO', 'todo', 'write_todos 拆解活动策划任务');
+      addSystemMsg('SKILL', 'skill', '加载 campaign-templates');
+      addSkillToSidebar('campaign-templates', '活动 SOP');
+      addMessage('ai', `好的，我来帮你搭活动框架 📋
+
+<strong>活动策划框架（{{活动名称}}）</strong>
+
+<strong>1. 目标设定</strong>
+• 核心 KPI（GMV / 曝光 / 拉新 / 转化 选 1-2 个）
+• 目标人群画像
+• 预期预算
+
+<strong>2. 玩法设计</strong>
+• 主玩法（满减 / 折扣 / 赠品 / 抽奖 / 拼团）
+• 裂变机制（分享得券 / 邀请有礼）
+• 门槛设计（是否设消费门槛）
+
+<strong>3. 渠道排期</strong>
+• 预热期（3-5 天前）：小红书种草 + 公众号预告
+• 爆发期（活动当天）：抖音直播 + 私域推送
+• 返场期（2-3 天后）：限时返场 + 好评晒单
+
+<strong>4. 物料清单</strong>
+• 海报 × 3（预热 / 爆发 / 返场）
+• 社媒文案 × 6（各平台适配）
+• 直播间脚本 × 1
+
+先告诉我具体是什么活动？预算大概多少？我帮你填肉。`);
+      return;
+    }
+  }
+
+  // --- PERSONA: hr ---
+  if (state.persona === 'hr') {
+    if (/^帮我写(个|一|一下)?(东西|文档)?\s*$/.test(lower) || lower === '帮我写' || lower === '写个东西') {
+      await showThinking(800);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → 信息不足，触发追问');
+      addMessage('ai', '你想写什么类型？常见的 HR 文档有：\n\n• 内部公告 / 全员通知\n• 招聘 JD / 职位描述\n• 培训材料 / 课件大纲\n• 制度文档 / 流程说明\n• 面试反馈 / 评估意见\n\n告诉我要写哪种，以及具体场景，我来帮你起草。');
+      return;
+    }
+
+    if (lower.includes('入职') || lower.includes('通知') || lower.includes('公告') || lower.includes('欢迎')) {
+      await showThinking(1000);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → hr-agent');
+      updateActiveSubAgent('hr-agent');
+      addSystemMsg('SKILL', 'skill', '加载 internal-comms');
+      addSkillToSidebar('internal-comms', '内部通讯');
+      addMessage('ai', `好的，帮你起草一份入职通知 ✉️
+
+---
+
+<strong>主题：欢迎新同事 | {{姓名}} 加入 {{部门}}</strong>
+
+各位同事：
+
+很高兴向大家介绍我们的新伙伴 —— <strong>{{姓名}}</strong>，他/她将于 <strong>{{日期}}</strong> 正式加入 <strong>{{部门}}</strong>，担任 <strong>{{岗位}}</strong>。
+
+{{他/她}} 毕业于 {{学校/专业}}，此前在 {{前公司}} 负责 {{方向}}，在 {{擅长领域}} 方面经验丰富。
+
+请大家在 {{姓名}} 入职后多多关照，帮助他/她快速融入团队！🎉
+
+—— HR 部
+
+---
+
+需要我填入具体信息吗？或者调整风格/篇幅？`);
+      return;
+    }
+
+    if (lower.includes('招聘') || lower.includes('jd') || lower.includes('职位') || lower.includes('岗位')) {
+      await showThinking(1200);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → hr-agent');
+      updateActiveSubAgent('hr-agent');
+      addSystemMsg('SKILL', 'skill', '加载 recruiting');
+      addSkillToSidebar('recruiting', '招聘技能');
+      addMessage('ai', `好的，我来帮你起草 JD 📝
+
+告诉我以下信息，我就能生成一份完整的招聘 JD：
+
+1. <strong>岗位名称</strong>（例如：高级产品经理）
+2. <strong>所属部门</strong>
+3. <strong>工作地点</strong>
+4. <strong>经验要求</strong>（例如：3-5 年）
+5. <strong>核心要求</strong>（2-3 项关键技能）
+
+或者你可以直接说「帮我写一份 3 年经验的产品经理 JD」，我按通用模板直接出。`);
+      return;
+    }
+  }
+
+  // --- PERSONA: marketing-overseas ---
+  if (state.persona === 'marketing-overseas') {
+    if (lower.includes('instagram') || lower.includes('post') || lower.includes('social')) {
+      await showThinking(1200);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → marketing-agent (overseas)');
+      updateActiveSubAgent('marketing-agent');
+      addSystemMsg('SKILL', 'skill', '加载 copywriting-overseas');
+      addSkillToSidebar('copywriting-overseas', '海外文案');
+      addMessage('ai', `Here's a draft Instagram post for you 📸
+
+---
+
+<strong>Caption:</strong>
+
+Your daily companion, now smarter than ever. ⌚✨
+
+Meet the new [Product Name] — designed for those who move fast and think faster.
+
+🔋 7-day battery life — no more charger anxiety
+💧 Water resistant up to 50m — rain or shine
+📊 Real-time health tracking — know your body better
+🎨 Interchangeable bands — match every outfit
+
+Now available in Graphite, Silver, and Forest Green.
+
+👇 Tap the link in bio to explore
+
+#SmartWatch #TechStyle #EverydayEssential #NewArrival #[BrandName]
+
+---
+
+<strong>Image suggestion:</strong> Lifestyle flat lay — watch + coffee + notebook on a wooden desk, natural light.
+
+Need adjustments for tone, length, or a different platform (Twitter, LinkedIn, TikTok)?`);
+      return;
+    }
+    if (lower.includes('email') || lower.includes('campaign') || lower.includes('black friday')) {
+      await showThinking(1000);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → marketing-agent (overseas)');
+      updateActiveSubAgent('marketing-agent');
+      addSystemMsg('SKILL', 'skill', '加载 copywriting-overseas + campaign-templates');
+      addSkillToSidebar('copywriting-overseas', '海外文案');
+      addSkillToSidebar('campaign-templates', '活动 SOP');
+      addMessage('ai', `Here's a Black Friday email draft 📧
+
+---
+
+<strong>Subject:</strong> Early Access: Up to 40% Off Starts Now 🔥
+
+Hi {Name},
+
+Black Friday came early this year.
+
+From now until Nov 28, enjoy <strong>up to 40% off</strong> on our entire lineup — no code needed.
+
+<strong>Our top picks for you:</strong>
+• [Product A] — Was $399, Now $279
+• [Product B] — Was $199, Now $129
+• [Product C] — Was $89, Now $59
+
+Free shipping on orders over $50.
+30-day return policy. No questions asked.
+
+[Shop the Sale →]
+
+---
+
+Need different segments (VIP vs new customer), subject line A/B testing, or SMS version?`);
+      return;
+    }
+  }
+
+  // --- PERSONA: content ---
+  if (state.persona === 'content') {
+    if (lower.includes('选题') || lower.includes('策划') || lower.includes('视频')) {
+      await showThinking(1200);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → content-agent');
+      updateActiveSubAgent('content-agent');
+      addSystemMsg('SKILL', 'skill', '加载 content-strategy');
+      addSkillToSidebar('content-strategy', '内容策略');
+      await showThinking(400);
+      addSystemMsg('SKILL', 'skill', '加载 platform-rules');
+      addSkillToSidebar('platform-rules', '平台规范');
+      addMessage('ai', `好的，帮你策划一期选题 📺
+
+<strong>选题方向：{{AI 工具 / 产品种草 / 个人成长...}}</strong>
+
+<strong>平台差异化策略：</strong>
+
+| 平台 | 形式 | 侧重 |
+|---|---|---|
+| <strong>抖音</strong> | 60s 竖屏 | 黄金前 3 秒钩子 + 干货密度 |
+| <strong>B 站</strong> | 5-8min 横屏 | 深度测评/教程 + 真实体验 |
+| <strong>小红书</strong> | 图文/1min | 场景化种草 + 情绪共鸣 |
+
+<strong>通用选题公式：</strong>
+「目标人群痛点 + 解决方案 + 差异化视角」
+
+举个例子：「大学生不会选课？我用这个方法四年轻松全 A」→ 痛点明确、人群精准、结果导向
+
+告诉我具体想做哪个方向、什么平台，我帮你出详细脚本。`);
+      return;
+    }
+    if (lower.includes('脚本') || lower.includes('口播') || lower.includes('分镜')) {
+      await showThinking(1000);
+      addSystemMsg('ROUTE', 'route', 'Supervisor → content-agent');
+      updateActiveSubAgent('content-agent');
+      addSystemMsg('SKILL', 'skill', '加载 shooting-editing');
+      addSkillToSidebar('shooting-editing', '拍摄剪辑');
+      addMessage('ai', `帮你写一个 60 秒口播脚本结构 🎬
+
+<strong>通用三幕结构：</strong>
+
+<strong>【0-5s 钩子】</strong>
+"你知道吗？90% 的人都在用错方法做 XX"
+→ 制造悬念/反常识/数据冲击
+
+<strong>【5-45s 干货】</strong>
+"其实只需要三步：
+第一步……（具体操作）
+第二步……（核心技巧）
+第三步……（避坑秘籍）"
+→ 信息量密集，少废话
+
+<strong>【45-55s 共鸣】</strong>
+"我用了这个方法之后……（结果/感受）"
+→ 个人化叙事，建立信任
+
+<strong>【55-60s 引导】</strong>
+"关注我，下期告诉你更多 XX 技巧"
+→ 完播引导
+
+告诉我具体主题，我帮你填内容！`);
+      return;
+    }
+  }
+
+  // --- FALLBACK: generic routing ---
+  await showThinking(1000);
+
+  if (state.messageCount === 1) {
+    // First question — route to appropriate sub-agent
+    addSystemMsg('ROUTE', 'route', 'Supervisor → ' + persona.subAgent);
+    updateActiveSubAgent(persona.subAgent);
+  }
+
+  addMessage('ai', `收到！我理解你想问关于 <em>「${text.slice(0, 30)}${text.length > 30 ? '...' : ''}」</em> 的问题。
+
+让我用 <strong>${persona.departmentName}</strong> 的视角来帮你处理。
+
+不过作为演示版本，这部分对话还没有完全预设。试试点击上方的推荐问题，体验更完整的 Agent 交互流程！`);
+}
+
+// ===== SIDEBAR HELPERS =====
+function updateActiveSubAgent(name) {
+  state.activeSubAgent = name;
+  document.getElementById('activeSubAgent').textContent = name;
+}
+
+function addSkillToSidebar(id, label) {
+  if (state.loadedSkills.find(s => s.id === id)) return;
+  state.loadedSkills.push({ id, label });
+
+  const container = document.getElementById('skillStatus');
+  if (state.loadedSkills.length === 1) container.innerHTML = '';
+
+  const div = document.createElement('div');
+  div.className = 'skill-indicator';
+  div.id = 'skill-' + id;
+  div.innerHTML = `<span class="dot loading"></span> ${label}`;
+  container.appendChild(div);
+
+  // Animate to loaded
+  setTimeout(() => {
+    const dot = div.querySelector('.dot');
+    if (dot) { dot.classList.remove('loading'); dot.classList.add('on'); }
+  }, 1200);
+}
+
+function saveMemory(key, value) {
+  state.memory[key] = value;
+  const preview = document.getElementById('memoryPreview');
+  const entries = Object.entries(state.memory);
+  if (entries.length === 0) {
+    preview.textContent = '暂无记录';
+  } else {
+    preview.innerHTML = entries.map(([k, v]) =>
+      `<div style="margin-bottom:4px;"><strong>${k}:</strong> ${v.slice(0, 40)}${v.length > 40 ? '...' : ''}</div>`
+    ).join('');
+  }
+}
+</script>
+
+</body>
+</html>

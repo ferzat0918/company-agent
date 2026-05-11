@@ -148,7 +148,7 @@ export function AssistantMessage({
 
   return (
     <div className="group mr-auto flex w-full items-start gap-2">
-      <div className="flex w-full flex-col gap-2">
+      <div className="flex w-full max-w-[88%] flex-col gap-2">
         {isToolResult ? (
           <>
             <ToolResult message={message} />
@@ -160,8 +160,16 @@ export function AssistantMessage({
           </>
         ) : (
           <>
+            {/* Agent identity tag */}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-violet)]">
+                █▌ AGENT
+              </span>
+              <span className="h-px flex-1 bg-[var(--umx-line)]" />
+            </div>
+
             {contentString.length > 0 && (
-              <div className="py-1">
+              <div className="border-l-2 border-[var(--umx-violet)] pl-4 py-0.5 text-[var(--umx-white)]">
                 <MarkdownText>{contentString}</MarkdownText>
               </div>
             )}
@@ -219,11 +227,20 @@ export function AssistantMessage({
 
 export function AssistantMessageLoading() {
   return (
-    <div className="mr-auto flex items-start gap-2">
-      <div className="bg-muted flex h-8 items-center gap-1 rounded-2xl px-4 py-2">
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_infinite] rounded-full"></div>
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_0.5s_infinite] rounded-full"></div>
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_1s_infinite] rounded-full"></div>
+    <div className="mr-auto flex w-full max-w-[88%] flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-violet)]">
+          █▌ AGENT
+        </span>
+        <span className="h-px flex-1 bg-[var(--umx-line)]" />
+      </div>
+      <div className="border-l-2 border-[var(--umx-violet)] pl-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)]">
+        <span>▸ THINKING</span>
+        <span className="inline-flex gap-1">
+          <span className="size-1 animate-[pulse_1.5s_ease-in-out_infinite] bg-[var(--umx-acid)]" />
+          <span className="size-1 animate-[pulse_1.5s_ease-in-out_0.5s_infinite] bg-[var(--umx-acid)]" />
+          <span className="size-1 animate-[pulse_1.5s_ease-in-out_1s_infinite] bg-[var(--umx-acid)]" />
+        </span>
       </div>
     </div>
   );

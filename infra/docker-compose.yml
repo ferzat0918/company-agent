@@ -1,10 +1,14 @@
 services:
   postgres:
-    image: supabase/postgres:latest  # TODO: pin version before production
+    image: supabase/postgres:15.14.1.121
     container_name: supabase-postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
+    networks:
+      default:
+        aliases:
+          - db
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
@@ -17,15 +21,16 @@ services:
       start_period: 30s
 
   gotrue:
-    image: supabase/gotrue:latest  # TODO: pin version before production
+    image: supabase/gotrue:v2.189.0
     container_name: supabase-gotrue
     restart: unless-stopped
     ports:
       - "9999:9999"
     environment:
+      API_EXTERNAL_URL: http://localhost:9999
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_admin:${POSTGRES_PASSWORD}@postgres:5432/postgres
       GOTRUE_SITE_URL: ${SITE_URL}
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_DISABLE_SIGNUP: "false"
@@ -35,11 +40,11 @@ services:
         condition: service_healthy
 
   pgmeta:
-    image: supabase/postgres-meta:latest  # TODO: pin version before production
+    image: supabase/postgres-meta:v0.96.5
     container_name: supabase-pgmeta
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8085:8080"
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: postgres
@@ -51,19 +56,20 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      test: ["CMD", "node", "-e", "const http=require('http');http.get('http://localhost:8080/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
 
   studio:
-    image: supabase/studio:latest  # TODO: pin version before production
+    image: supabase/studio:latest  # has :latest tag
     container_name: supabase-studio
     restart: unless-stopped
     ports:
       - "8081:3000"
     environment:
+      HOSTNAME: 0.0.0.0
       STUDIO_PG_META_URL: http://pgmeta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       SUPABASE_URL: http://kong:8000
@@ -74,7 +80,7 @@ services:
         condition: service_started
 
   kong:
-    image: supabase/kong:latest  # TODO: pin version before production
+    image: kong:3.9  # official Kong image (supabase/kong not available)
     container_name: supabase-kong
     restart: unless-stopped
     ports:
@@ -98,11 +104,18 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL}
       POSTGRES_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
-      SKILLS_DIR: /app/skills
-      PROMPTS_DIR: /app/prompts
+      SKILLS_DIR: skills
+      PROMPTS_DIR: prompts
+      LANGGRAPH_CHECKPOINTER: '{"backend":"custom","path":"./backend/src/store_setup.py:create_checkpointer"}'
+      LANGGRAPH_STORE: '{"path":"./backend/src/store_setup.py:create_store"}'
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
     volumes:
       - ../skills:/app/skills
       - ../prompts:/app/prompts
+      - langgraph-data:/app/.langgraph_api
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,3 +133,4 @@ services:
 
 volumes:
   postgres-data:
+  langgraph-data:

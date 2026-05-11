@@ -3,15 +3,15 @@ import { unknownToPrettyDate } from "../utils";
 
 export function ToolCallTable({ toolCall }: { toolCall: ToolCall }) {
   return (
-    <div className="max-w-full min-w-[300px] overflow-hidden rounded-lg border">
+    <div className="max-w-full min-w-[300px] overflow-hidden rounded-[2px] border border-[var(--umx-line)]">
       <table className="w-full border-collapse">
         <thead>
           <tr>
             <th
-              className="bg-gray-100 px-2 py-0 text-left text-sm"
+              className="bg-[var(--umx-bg-2)] px-2 py-1 text-left font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--umx-silver)]"
               colSpan={2}
             >
-              {toolCall.name}
+              ▸ {toolCall.name}
             </th>
           </tr>
         </thead>
@@ -37,10 +37,10 @@ export function ToolCallTable({ toolCall }: { toolCall: ToolCall }) {
             return (
               <tr
                 key={key}
-                className="border-t"
+                className="border-t border-[var(--umx-line)]"
               >
-                <td className="w-1/3 px-2 py-1 text-xs font-medium">{key}</td>
-                <td className="px-2 py-1 font-mono text-xs">{valueStr}</td>
+                <td className="w-1/3 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.12em] font-medium text-[var(--umx-white)]">{key}</td>
+                <td className="px-2 py-1 font-mono text-xs text-[var(--umx-silver)]">{valueStr}</td>
               </tr>
             );
           })}

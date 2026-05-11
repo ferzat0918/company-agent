@@ -1,50 +1,72 @@
 import { AIMessage, ToolMessage } from "@langchain/langgraph-sdk";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 function isComplexValue(value: any): boolean {
   return Array.isArray(value) || (typeof value === "object" && value !== null);
 }
 
-export function ToolCalls({
-  toolCalls,
-}: {
-  toolCalls: AIMessage["tool_calls"];
-}) {
-  if (!toolCalls || toolCalls.length === 0) return null;
+/**
+ * UMX 风格 tool 调用块 — 默认折叠成单行 metadata, 点击展开参数表。
+ */
+function ToolCallCard({ tc }: { tc: NonNullable<AIMessage["tool_calls"]>[number] }) {
+  const args = tc.args as Record<string, any>;
+  const hasArgs = Object.keys(args).length > 0;
+  const argCount = Object.keys(args).length;
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-      {toolCalls.map((tc, idx) => {
-        const args = tc.args as Record<string, any>;
-        const hasArgs = Object.keys(args).length > 0;
-        return (
-          <div
-            key={idx}
-            className="overflow-hidden rounded-lg border border-gray-200"
+    <div className="overflow-hidden rounded-[2px] border border-[var(--umx-line)]">
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        className="flex w-full items-center gap-2 bg-[var(--umx-bg-1)] px-3 py-1.5 text-left transition-colors hover:bg-[var(--umx-bg-2)]"
+      >
+        <motion.span
+          animate={{ rotate: isOpen ? 90 : 0 }}
+          transition={{ duration: 0.15 }}
+          className="text-[var(--umx-text-dim)]"
+        >
+          <ChevronRight className="size-3.5" />
+        </motion.span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--umx-silver)]">
+          TOOL ·
+        </span>
+        <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--umx-white)]">
+          {tc.name}
+        </span>
+        {hasArgs && (
+          <span className="font-mono text-[10px] tracking-[0.16em] text-[var(--umx-text-dim)]">
+            ({argCount} {argCount === 1 ? "arg" : "args"})
+          </span>
+        )}
+        {tc.id && (
+          <code className="ml-auto truncate max-w-[160px] font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--umx-text-dim)]">
+            {tc.id}
+          </code>
+        )}
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="overflow-hidden border-t border-[var(--umx-line)]"
           >
-            <div className="border-b border-gray-200 bg-gray-50 px-4 py-2">
-              <h3 className="font-medium text-gray-900">
-                {tc.name}
-                {tc.id && (
-                  <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-sm">
-                    {tc.id}
-                  </code>
-                )}
-              </h3>
-            </div>
             {hasArgs ? (
-              <table className="min-w-full divide-y divide-gray-200">
-                <tbody className="divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-[var(--umx-line)]">
+                <tbody className="divide-y divide-[var(--umx-line)]">
                   {Object.entries(args).map(([key, value], argIdx) => (
                     <tr key={argIdx}>
-                      <td className="px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-900">
+                      <td className="w-1/4 px-3 py-1.5 font-mono text-[11px] font-medium whitespace-nowrap text-[var(--umx-white)] align-top">
                         {key}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-500">
+                      <td className="px-3 py-1.5 text-sm text-[var(--umx-silver)]">
                         {isComplexValue(value) ? (
-                          <code className="rounded bg-gray-50 px-2 py-1 font-mono text-sm break-all">
+                          <code className="block whitespace-pre-wrap rounded-[2px] bg-[var(--umx-bg-2)] px-2 py-1 font-mono text-xs text-[var(--umx-silver)] break-all">
                             {JSON.stringify(value, null, 2)}
                           </code>
                         ) : (
@@ -56,17 +78,40 @@ export function ToolCalls({
                 </tbody>
               </table>
             ) : (
-              <code className="block p-3 text-sm">{"{}"}</code>
+              <code className="block p-3 font-mono text-xs text-[var(--umx-text-dim)]">
+                {"{}"}
+              </code>
             )}
-          </div>
-        );
-      })}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
+export function ToolCalls({
+  toolCalls,
+}: {
+  toolCalls: AIMessage["tool_calls"];
+}) {
+  if (!toolCalls || toolCalls.length === 0) return null;
+
+  return (
+    <div className="mx-auto grid w-full max-w-3xl gap-1">
+      {toolCalls.map((tc, idx) => (
+        <ToolCallCard key={tc.id ?? idx} tc={tc} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * UMX 风格 tool result — 默认折叠成单行, 点击展开详情。
+ * 长内容内部仍保留 "expand all" 子按钮。
+ */
 export function ToolResult({ message }: { message: ToolMessage }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isFullyExpanded, setIsFullyExpanded] = useState(false);
 
   let parsedContent: any;
   let isJsonContent = false;
@@ -77,7 +122,6 @@ export function ToolResult({ message }: { message: ToolMessage }) {
       isJsonContent = isComplexValue(parsedContent);
     }
   } catch {
-    // Content is not JSON, use as is
     parsedContent = message.content;
   }
 
@@ -87,57 +131,66 @@ export function ToolResult({ message }: { message: ToolMessage }) {
   const contentLines = contentStr.split("\n");
   const shouldTruncate = contentLines.length > 4 || contentStr.length > 500;
   const displayedContent =
-    shouldTruncate && !isExpanded
+    shouldTruncate && !isFullyExpanded
       ? contentStr.length > 500
         ? contentStr.slice(0, 500) + "..."
         : contentLines.slice(0, 4).join("\n") + "\n..."
       : contentStr;
 
+  // 单行摘要 (折叠时显示)
+  const summary = isJsonContent
+    ? Array.isArray(parsedContent)
+      ? `${parsedContent.length} item${parsedContent.length === 1 ? "" : "s"}`
+      : `${Object.keys(parsedContent).length} field${Object.keys(parsedContent).length === 1 ? "" : "s"}`
+    : `${contentStr.length} chars`;
+
   return (
-    <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-      <div className="overflow-hidden rounded-lg border border-gray-200">
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {message.name ? (
-              <h3 className="font-medium text-gray-900">
-                Tool Result:{" "}
-                <code className="rounded bg-gray-100 px-2 py-1">
-                  {message.name}
-                </code>
-              </h3>
-            ) : (
-              <h3 className="font-medium text-gray-900">Tool Result</h3>
-            )}
-            {message.tool_call_id && (
-              <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-sm">
-                {message.tool_call_id}
-              </code>
-            )}
-          </div>
-        </div>
-        <motion.div
-          className="min-w-full bg-gray-100"
-          initial={false}
-          animate={{ height: "auto" }}
-          transition={{ duration: 0.3 }}
+    <div className="mx-auto w-full max-w-3xl">
+      <div className="overflow-hidden rounded-[2px] border border-[var(--umx-line)]">
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          className="flex w-full items-center gap-2 bg-[var(--umx-bg-1)] px-3 py-1.5 text-left transition-colors hover:bg-[var(--umx-bg-2)]"
         >
-          <div className="p-3">
-            <AnimatePresence
-              mode="wait"
-              initial={false}
+          <motion.span
+            animate={{ rotate: isOpen ? 90 : 0 }}
+            transition={{ duration: 0.15 }}
+            className="text-[var(--umx-text-dim)]"
+          >
+            <ChevronRight className="size-3.5" />
+          </motion.span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--umx-acid)]">
+            RESULT ·
+          </span>
+          {message.name && (
+            <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--umx-white)]">
+              {message.name}
+            </span>
+          )}
+          <span className="font-mono text-[10px] tracking-[0.16em] text-[var(--umx-text-dim)]">
+            {summary}
+          </span>
+          {message.tool_call_id && (
+            <code className="ml-auto truncate max-w-[160px] font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--umx-text-dim)]">
+              {message.tool_call_id}
+            </code>
+          )}
+        </button>
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="overflow-hidden border-t border-[var(--umx-line)] bg-[var(--umx-bg-2)]"
             >
-              <motion.div
-                key={isExpanded ? "expanded" : "collapsed"}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.2 }}
-              >
+              <div className="p-3">
                 {isJsonContent ? (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <tbody className="divide-y divide-gray-200">
+                  <table className="min-w-full divide-y divide-[var(--umx-line)]">
+                    <tbody className="divide-y divide-[var(--umx-line)]">
                       {(Array.isArray(parsedContent)
-                        ? isExpanded
+                        ? isFullyExpanded
                           ? parsedContent
                           : parsedContent.slice(0, 5)
                         : Object.entries(parsedContent)
@@ -147,12 +200,12 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                           : [item[0], item[1]];
                         return (
                           <tr key={argIdx}>
-                            <td className="px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-900">
+                            <td className="w-1/4 px-3 py-1.5 font-mono text-[11px] font-medium whitespace-nowrap text-[var(--umx-white)] align-top">
                               {key}
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-500">
+                            <td className="px-3 py-1.5 text-sm text-[var(--umx-silver)]">
                               {isComplexValue(value) ? (
-                                <code className="rounded bg-gray-50 px-2 py-1 font-mono text-sm break-all">
+                                <code className="block whitespace-pre-wrap rounded-[2px] bg-[var(--umx-bg-1)] px-2 py-1 font-mono text-xs text-[var(--umx-silver)] break-all">
                                   {JSON.stringify(value, null, 2)}
                                 </code>
                               ) : (
@@ -165,26 +218,26 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                     </tbody>
                   </table>
                 ) : (
-                  <code className="block text-sm">{displayedContent}</code>
+                  <code className="block whitespace-pre-wrap font-mono text-xs text-[var(--umx-silver)]">
+                    {displayedContent}
+                  </code>
                 )}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-          {((shouldTruncate && !isJsonContent) ||
-            (isJsonContent &&
-              Array.isArray(parsedContent) &&
-              parsedContent.length > 5)) && (
-            <motion.button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex w-full cursor-pointer items-center justify-center border-t-[1px] border-gray-200 py-2 text-gray-500 transition-all duration-200 ease-in-out hover:bg-gray-50 hover:text-gray-600"
-              initial={{ scale: 1 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {isExpanded ? <ChevronUp /> : <ChevronDown />}
-            </motion.button>
+              </div>
+              {((shouldTruncate && !isJsonContent) ||
+                (isJsonContent &&
+                  Array.isArray(parsedContent) &&
+                  parsedContent.length > 5)) && (
+                <button
+                  type="button"
+                  onClick={() => setIsFullyExpanded((v) => !v)}
+                  className="flex w-full items-center justify-center border-t border-[var(--umx-line)] py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)] transition-colors hover:bg-[var(--umx-bg-3)] hover:text-[var(--umx-silver)]"
+                >
+                  {isFullyExpanded ? "▴ COLLAPSE" : "▾ SHOW ALL"}
+                </button>
+              )}
+            </motion.div>
           )}
-        </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

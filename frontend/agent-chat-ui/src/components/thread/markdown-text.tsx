@@ -47,7 +47,7 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   };
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-t-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">
+    <div className="flex items-center justify-between gap-4 rounded-t-[2px] border border-b-0 border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--umx-silver)]">
       <span className="lowercase [&>span]:text-xs">{language}</span>
       <TooltipIconButton
         tooltip="Copy"
@@ -151,19 +151,15 @@ const defaultComponents: any = {
       {...props}
     />
   ),
+  // 表格样式全部在 markdown-styles.css 里，JSX 不再叠加类，
+  // 只保留 align 属性映射（GFM 表格语法支持的 :---:, ---: 对齐）。
   table: ({ className, ...props }: { className?: string }) => (
-    <table
-      className={cn(
-        "my-5 w-full border-separate border-spacing-0 overflow-y-auto",
-        className,
-      )}
-      {...props}
-    />
+    <table className={className} {...props} />
   ),
   th: ({ className, ...props }: { className?: string }) => (
     <th
       className={cn(
-        "bg-muted px-4 py-2 text-left font-bold first:rounded-tl-lg last:rounded-tr-lg [&[align=center]]:text-center [&[align=right]]:text-right",
+        "[&[align=center]]:text-center [&[align=right]]:text-right",
         className,
       )}
       {...props}
@@ -172,20 +168,14 @@ const defaultComponents: any = {
   td: ({ className, ...props }: { className?: string }) => (
     <td
       className={cn(
-        "border-b border-l px-4 py-2 text-left last:border-r [&[align=center]]:text-center [&[align=right]]:text-right",
+        "[&[align=center]]:text-center [&[align=right]]:text-right",
         className,
       )}
       {...props}
     />
   ),
   tr: ({ className, ...props }: { className?: string }) => (
-    <tr
-      className={cn(
-        "m-0 border-b p-0 first:border-t [&:last-child>td:first-child]:rounded-bl-lg [&:last-child>td:last-child]:rounded-br-lg",
-        className,
-      )}
-      {...props}
-    />
+    <tr className={className} {...props} />
   ),
   sup: ({ className, ...props }: { className?: string }) => (
     <sup

@@ -13,7 +13,7 @@ function ResetButton({ handleReset }: { handleReset: () => void }) {
     <Button
       onClick={handleReset}
       variant="ghost"
-      className="flex items-center justify-center gap-2 text-gray-500 hover:text-red-500"
+      className="flex items-center justify-center gap-2 text-[var(--umx-text-dim)] hover:text-[var(--destructive)]"
     >
       <Undo2 className="h-4 w-4" />
       <span>Reset</span>
@@ -35,10 +35,10 @@ function ArgsRenderer({ args }: { args: Record<string, unknown> }) {
             key={`args-${key}`}
             className="flex flex-col items-start gap-1"
           >
-            <p className="text-sm leading-[18px] text-wrap text-gray-600">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)]">
               {prettifyText(key)}
             </p>
-            <span className="w-full max-w-full rounded-xl bg-zinc-100 p-3 text-[13px] leading-[18px] text-black">
+            <span className="w-full max-w-full rounded-[2px] border border-[var(--umx-line)] bg-[var(--umx-bg-2)] p-3 text-[13px] leading-[18px] text-[var(--umx-white)]">
               <MarkdownText>{stringValue}</MarkdownText>
             </span>
           </div>
@@ -83,12 +83,12 @@ function ApproveOnly({
   ) => Promise<void> | void;
 }) {
   return (
-    <div className="flex w-full flex-col items-start gap-4 rounded-lg border border-gray-300 p-6">
+    <div className="flex w-full flex-col items-start gap-4 rounded-[2px] border border-[var(--umx-line-strong)] bg-[var(--umx-bg-1)] p-6">
       {Object.keys(actionRequestArgs).length > 0 && (
         <ArgsRenderer args={actionRequestArgs} />
       )}
       <Button
-        variant="brand"
+        variant="acid"
         disabled={isLoading}
         onClick={handleSubmit}
         className="w-full"
@@ -183,9 +183,9 @@ function EditActionCard({
   };
 
   return (
-    <div className="flex w-full min-w-full flex-col items-start gap-4 rounded-lg border border-gray-300 p-6">
+    <div className="flex w-full min-w-full flex-col items-start gap-4 rounded-[2px] border border-[var(--umx-line-strong)] bg-[var(--umx-bg-1)] p-6">
       <div className="flex w-full items-center justify-between">
-        <p className="text-base font-semibold text-black">{header}</p>
+        <p className="font-display text-base font-bold uppercase tracking-[0.08em] text-[var(--umx-white)]">{header}</p>
         <ResetButton handleReset={handleReset} />
       </div>
 
@@ -229,7 +229,7 @@ function EditActionCard({
 
       <div className="flex w-full items-center justify-end gap-2">
         <Button
-          variant="brand"
+          variant="acid"
           disabled={isLoading}
           onClick={handleSubmit}
         >
@@ -274,9 +274,9 @@ function RejectActionCard({
   };
 
   return (
-    <div className="flex w-full max-w-full flex-col items-start gap-4 rounded-xl border border-gray-300 p-6">
+    <div className="flex w-full max-w-full flex-col items-start gap-4 rounded-[2px] border border-[var(--umx-line-strong)] bg-[var(--umx-bg-1)] p-6">
       <div className="flex w-full items-center justify-between">
-        <p className="text-base font-semibold text-black">Reject</p>
+        <p className="font-display text-base font-bold uppercase tracking-[0.08em] text-[var(--umx-white)]">Reject</p>
         <ResetButton handleReset={() => onChange("", rejectResponse)} />
       </div>
 
@@ -297,7 +297,7 @@ function RejectActionCard({
 
       <div className="flex w-full items-center justify-end gap-2">
         <Button
-          variant="brand"
+          variant="acid"
           disabled={isLoading}
           onClick={handleSubmit}
         >
@@ -471,7 +471,7 @@ export function InboxItemInput({
         {supportsMultipleMethods ? (
           <div className="mx-auto mt-3 flex items-center gap-3">
             <Separator className="w-full" />
-            <p className="text-sm text-gray-500">Or</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">OR</p>
             <Separator className="w-full" />
           </div>
         ) : null}
@@ -486,11 +486,11 @@ export function InboxItemInput({
         />
 
         {isLoading && (
-          <p className="text-sm text-gray-600">Submitting decision...</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">SUBMITTING DECISION…</p>
         )}
         {selectedSubmitType && supportsMultipleMethods && (
-          <p className="text-xs text-gray-500">
-            Currently selected: {prettifyText(selectedSubmitType)}
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">
+            CURRENTLY SELECTED: {prettifyText(selectedSubmitType)}
           </p>
         )}
       </div>

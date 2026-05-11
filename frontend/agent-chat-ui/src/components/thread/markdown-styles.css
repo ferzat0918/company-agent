@@ -1,45 +1,122 @@
-/* Base markdown styles */
+/* UMX markdown styles — depth-aware, dark by default */
+
+/* Inline code (not inside <pre>) */
 .markdown-content code:not(pre code) {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 0.2em 0.4em;
-  border-radius: 3px;
-  font-size: 0.9em;
+  background: var(--umx-bg-2);
+  color: var(--umx-acid);
+  border: 1px solid var(--umx-line);
+  padding: 0.1em 0.4em;
+  border-radius: 2px;
+  font-size: 0.875em;
+  font-family: var(--font-mono);
 }
 
 .markdown-content a {
-  color: #0070f3;
-  text-decoration: none;
+  color: var(--umx-acid);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--umx-line-strong);
+  transition: text-decoration-color 0.15s;
 }
 
 .markdown-content a:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--umx-acid);
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid #ddd;
+  border-left: 2px solid var(--umx-violet);
   padding-left: 1rem;
-  color: #666;
+  color: var(--umx-silver);
+  font-style: italic;
 }
 
 .markdown-content pre {
   overflow-x: auto;
+  background: var(--umx-bg-2);
+  border: 1px solid var(--umx-line);
+  border-top: none;
+  border-radius: 0 0 2px 2px;
+  padding: 0.75rem 1rem;
+  margin: 0;
 }
 
+.markdown-content hr {
+  border: 0;
+  border-top: 1px solid var(--umx-line);
+  margin: 1.5rem 0;
+}
+
+/* Tables — UMX 机械感线框 */
 .markdown-content table {
   border-collapse: collapse;
+  border-spacing: 0;
   width: 100%;
+  margin: 1.25rem 0;
+  border: 1px solid var(--umx-line);
+  border-radius: 2px;
+  overflow: hidden;
+  font-size: 0.875rem;
 }
 
 .markdown-content th,
 .markdown-content td {
-  border: 1px solid #ddd;
-  padding: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--umx-line);
+  border-right: 1px solid var(--umx-line);
+  padding: 0.5rem 0.875rem;
+  text-align: left;
+  vertical-align: top;
 }
 
-.markdown-content th {
-  background-color: #f2f2f2;
+.markdown-content th:last-child,
+.markdown-content td:last-child {
+  border-right: 0;
 }
 
-.markdown-content tr:nth-child(even) {
-  background-color: #f9f9f9;
+.markdown-content tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown-content thead th {
+  background: var(--umx-bg-2);
+  color: var(--umx-silver);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--umx-line-strong);
+}
+
+.markdown-content tbody tr {
+  background: transparent;
+  transition: background-color 0.12s;
+}
+
+.markdown-content tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.markdown-content tbody tr:hover {
+  background: var(--umx-bg-1);
+}
+
+.markdown-content tbody td {
+  color: var(--umx-white);
+}
+
+.markdown-content tbody td:first-child {
+  color: var(--umx-silver);
+  font-weight: 500;
+}
+
+/* Lists 边距更紧凑 */
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.75rem 0;
+}
+
+.markdown-content li::marker {
+  color: var(--umx-text-dim);
 }
