@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useThreads } from "@/providers/Thread";
+import { useAuth } from "@/providers/Auth";
 import { Thread } from "@langchain/langgraph-sdk";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PanelRightOpen, PanelRightClose, SquarePen } from "lucide-react";
+import { PanelRightOpen, PanelRightClose, SquarePen, LogOut } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 function formatRelativeTime(iso?: string): string {
@@ -125,6 +126,7 @@ function ThreadHistoryLoading() {
 
 export default function ThreadHistory() {
   const isLargeScreen = useMediaQuery("(min-width: 1024px)");
+  const { user, signOut } = useAuth();
   const [chatHistoryOpen, setChatHistoryOpen] = useQueryState(
     "chatHistoryOpen",
     parseAsBoolean.withDefault(false),
@@ -142,6 +144,9 @@ export default function ThreadHistory() {
       .catch(console.error)
       .finally(() => setThreadsLoading(false));
   }, []);
+
+  // 用户邮箱截取 @ 前的部分作为显示名
+  const displayName = user?.email?.split("@")[0]?.toUpperCase() ?? "USER";
 
   const sidebar = (
     <>
@@ -189,10 +194,30 @@ export default function ThreadHistory() {
             )}
           </Button>
           <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--umx-text-dim)]">
-            HEFAN · HR
+            {displayName}
           </span>
         </div>
         {sidebar}
+        {/* 用户信息 + 退出 — 固定在侧边栏底部 */}
+        <div className="mt-auto flex w-full items-center justify-between border-t border-[var(--umx-line)] px-4 py-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--umx-white)]">
+              {user?.email ?? "user"}
+            </span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
+              AUTHENTICATED
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Sign out"
+            onClick={signOut}
+            className="size-7 shrink-0 text-[var(--umx-text-dim)] hover:text-[var(--umx-acid)]"
+          >
+            <LogOut className="size-3.5" />
+          </Button>
+        </div>
       </div>
       <div className="lg:hidden">
         <Sheet

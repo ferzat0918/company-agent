@@ -65,7 +65,7 @@ function UmxLoadingScreen() {
  * shows the agent chat UI when authenticated.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { session, loading, signOut, user } = useAuth();
+  const { session, loading } = useAuth();
 
   if (loading) {
     return <UmxLoadingScreen />;
@@ -75,61 +75,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return <LoginPage />;
   }
 
-  return (
-    <div style={{ position: "relative" }}>
-      {/* User badge + sign out button — UMX 品牌风格 */}
-      <div
-        className="umx-glass"
-        style={{
-          position: "fixed",
-          top: "12px",
-          right: "16px",
-          zIndex: 50,
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          padding: "6px 14px",
-          borderRadius: "2px",
-          fontFamily: "var(--font-mono)",
-          fontSize: "10px",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: "var(--umx-silver)",
-        }}
-      >
-        <span style={{ color: "var(--umx-white)" }}>
-          {user?.email ?? "User"}
-        </span>
-        <button
-          onClick={signOut}
-          style={{
-            padding: "4px 10px",
-            background: "transparent",
-            border: "1px solid var(--umx-line-strong)",
-            borderRadius: "2px",
-            color: "var(--umx-silver)",
-            fontFamily: "var(--font-mono)",
-            fontSize: "9px",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "var(--umx-acid)";
-            e.currentTarget.style.color = "var(--umx-acid)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--umx-line-strong)";
-            e.currentTarget.style.color = "var(--umx-silver)";
-          }}
-        >
-          退出
-        </button>
-      </div>
-      {children}
-    </div>
-  );
+  return <>{children}</>;
 }
 
 export default function DemoPage(): React.ReactNode {
