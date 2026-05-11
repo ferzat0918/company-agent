@@ -1,18 +1,53 @@
 """Supabase JWT authentication handler for LangGraph @auth.
 
+NOTE: This file is loaded DIRECTLY by LangGraph Server (not as part of a
+package), so we CANNOT use relative imports like `from .config import ...`.
+All configuration must be read from environment variables directly.
+
 Flow:
   1. Validate JWT from Authorization header
   2. Query Supabase profiles table for user's dept/role/region
   3. Return identity + user_profile in the auth context
   4. LangGraph injects this into RunnableConfig for every node
 """
+import os
 import jwt
+import httpx
+from dotenv import load_dotenv
 from langgraph_sdk.auth import Auth
 from langgraph_sdk.auth.exceptions import HTTPException
-from .config import SUPABASE_JWT_SECRET, SUPABASE_URL, SUPABASE_ANON_KEY
-from .profiles import get_profile
+
+# Load .env for local development and tests
+load_dotenv()
+
+# Read config from environment (can't use relative imports here)
+_jwt_secret = os.environ.get("JWT_SECRET") or os.environ.get("SUPABASE_JWT_SECRET")
+if not _jwt_secret:
+    raise RuntimeError("Missing required env var: JWT_SECRET")
+
+_supabase_url = os.environ.get("SUPABASE_URL", "http://localhost:8000")
+_supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
 
 auth = Auth()
+
+
+async def _get_profile(user_id: str) -> dict | None:
+    """Query Supabase profiles table for user info."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_supabase_url}/rest/v1/profiles",
+                params={"user_id": f"eq.{user_id}", "select": "*"},
+                headers={
+                    "apikey": _supabase_anon_key,
+                    "Authorization": f"Bearer {_supabase_anon_key}",
+                },
+            )
+            if resp.status_code == 200 and resp.json():
+                return resp.json()[0]
+    except Exception:
+        pass
+    return None
 
 
 @auth.authenticate
@@ -26,7 +61,7 @@ async def verify_supabase_jwt(authorization: str | None) -> dict:
     try:
         payload = jwt.decode(
             token,
-            SUPABASE_JWT_SECRET,
+            _jwt_secret,
             algorithms=["HS256"],
             options={"verify_aud": False},
         )
@@ -38,21 +73,20 @@ async def verify_supabase_jwt(authorization: str | None) -> dict:
     user_id = payload["sub"]
 
     # Query profiles table for dept/role/region
-    profile = await get_profile(user_id)
+    profile = await _get_profile(user_id)
 
     if profile:
         return {
             "identity": user_id,
             "user_profile": {
                 "user_id": user_id,
-                "dept": profile.dept,
-                "role": profile.role,
-                "region": profile.region,
+                "dept": profile.get("dept", "unknown"),
+                "role": profile.get("role", ""),
+                "region": profile.get("region"),
             },
         }
     else:
         # User exists in auth.users but not in profiles table
-        # Allow access with a fallback profile (no dept routing)
         return {
             "identity": user_id,
             "user_profile": {
