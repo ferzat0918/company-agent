@@ -112,7 +112,7 @@ function ThreadList({
           >
             <p
               className={cn(
-                "w-full truncate pr-6 text-sm leading-tight",
+                "w-full truncate text-sm leading-tight",
                 isActive ? "text-[var(--umx-white)]" : "text-[var(--umx-silver)]",
               )}
             >
@@ -120,23 +120,26 @@ function ThreadList({
             </p>
             <div className="flex w-full items-center justify-between font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
               <span>{shortId}</span>
-              {relative && <span>{relative}</span>}
+              {/* 默认显示时间，hover 时切换为删除按钮 */}
+              {relative && (
+                <span className="group-hover:hidden">{relative}</span>
+              )}
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Delete thread"
+                className="hidden group-hover:inline-flex items-center gap-1 cursor-pointer text-[var(--umx-text-dim)] hover:text-[#ff3b3b] transition-colors"
+                onClick={(e) => handleDelete(e, t.thread_id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    handleDelete(e as unknown as React.MouseEvent, t.thread_id);
+                  }
+                }}
+              >
+                <Trash2 className="size-3" />
+                DELETE
+              </span>
             </div>
-            {/* 删除按钮 — hover 时显示 */}
-            <span
-              role="button"
-              tabIndex={0}
-              aria-label="Delete thread"
-              className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer text-[var(--umx-text-dim)] hover:text-[#ff3b3b]"
-              onClick={(e) => handleDelete(e, t.thread_id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  handleDelete(e as unknown as React.MouseEvent, t.thread_id);
-                }
-              }}
-            >
-              <Trash2 className="size-3.5" />
-            </span>
           </button>
         );
       })}

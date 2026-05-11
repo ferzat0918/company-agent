@@ -98,4 +98,40 @@ async def verify_supabase_jwt(authorization: str | None) -> dict:
         }
 
 
+# ──────────────────────────────────────────────────────────
+# Resource-level authorization: thread isolation per user
+# ──────────────────────────────────────────────────────────
+
+@auth.on.threads.create
+async def on_thread_create(ctx, value):
+    """Stamp every new thread with the owner's identity."""
+    metadata = value.setdefault("metadata", {})
+    metadata["owner"] = ctx.user.identity
+    return value
+
+
+@auth.on.threads.read
+async def on_thread_read(ctx, value):
+    """Only return threads owned by the current user."""
+    return {"owner": ctx.user.identity}
+
+
+@auth.on.threads.update
+async def on_thread_update(ctx, value):
+    """Only allow updating threads owned by the current user."""
+    return {"owner": ctx.user.identity}
+
+
+@auth.on.threads.delete
+async def on_thread_delete(ctx, value):
+    """Only allow deleting threads owned by the current user."""
+    return {"owner": ctx.user.identity}
+
+
+@auth.on.threads.search
+async def on_thread_search(ctx, value):
+    """Only list threads owned by the current user."""
+    return {"owner": ctx.user.identity}
+
+
 __all__ = ["auth"]
