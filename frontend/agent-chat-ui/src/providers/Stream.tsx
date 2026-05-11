@@ -79,7 +79,7 @@ const StreamSession = ({
     threadId: threadId ?? null,
     fetchStateHistory: true,
     // Pass the Supabase JWT as Authorization header
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    defaultHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
     onCustomEvent: (event, options) => {
       if (isUIMessage(event) || isRemoveUIMessage(event)) {
         options.mutate((prev) => {
