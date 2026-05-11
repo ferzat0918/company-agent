@@ -107,6 +107,9 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL}
       POSTGRES_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       SKILLS_DIR: skills
       PROMPTS_DIR: prompts
       LANGGRAPH_CHECKPOINTER: '{"backend":"custom","path":"./backend/src/store_setup.py:create_checkpointer"}'
