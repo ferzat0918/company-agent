@@ -438,7 +438,7 @@ export function LoginPage() {
             margin: "24px 0 0",
           }}
         >
-          账号由管理员在 SUPABASE 中创建
+          账号由管理员创建
         </p>
       </motion.div>
     </div>

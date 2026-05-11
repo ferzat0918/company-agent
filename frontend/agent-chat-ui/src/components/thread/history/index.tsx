@@ -14,7 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PanelRightOpen, PanelRightClose, SquarePen, LogOut } from "lucide-react";
+import { PanelRightOpen, PanelRightClose, SquarePen, LogOut, Trash2 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 function formatRelativeTime(iso?: string): string {
@@ -41,6 +41,24 @@ function ThreadList({
   onThreadClick?: (threadId: string) => void;
 }) {
   const [threadId, setThreadId] = useQueryState("threadId");
+  const { deleteThread } = useThreads();
+
+  const handleDelete = async (
+    e: React.MouseEvent,
+    tid: string,
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      await deleteThread(tid);
+      // 如果删除的是当前正在查看的 thread，清空选中
+      if (tid === threadId) {
+        setThreadId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete thread", err);
+    }
+  };
 
   if (threads.length === 0) {
     return (
@@ -94,7 +112,7 @@ function ThreadList({
           >
             <p
               className={cn(
-                "w-full truncate text-sm leading-tight",
+                "w-full truncate pr-6 text-sm leading-tight",
                 isActive ? "text-[var(--umx-white)]" : "text-[var(--umx-silver)]",
               )}
             >
@@ -104,6 +122,21 @@ function ThreadList({
               <span>{shortId}</span>
               {relative && <span>{relative}</span>}
             </div>
+            {/* 删除按钮 — hover 时显示 */}
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label="Delete thread"
+              className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 cursor-pointer text-[var(--umx-text-dim)] hover:text-[#ff3b3b]"
+              onClick={(e) => handleDelete(e, t.thread_id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  handleDelete(e as unknown as React.MouseEvent, t.thread_id);
+                }
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </span>
           </button>
         );
       })}

@@ -14,6 +14,7 @@ import { useAuth } from "./Auth";
 
 interface ThreadContextType {
   getThreads: () => Promise<Thread[]>;
+  deleteThread: (threadId: string) => Promise<void>;
   threads: Thread[];
   setThreads: Dispatch<SetStateAction<Thread[]>>;
   threadsLoading: boolean;
@@ -60,8 +61,23 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
     return threads;
   }, [session]);
 
+  const deleteThread = useCallback(
+    async (threadId: string): Promise<void> => {
+      const client = createClient(
+        HARDCODED_API_URL,
+        undefined,
+        undefined,
+        session?.access_token,
+      );
+      await client.threads.delete(threadId);
+      setThreads((prev) => prev.filter((t) => t.thread_id !== threadId));
+    },
+    [session],
+  );
+
   const value = {
     getThreads,
+    deleteThread,
     threads,
     setThreads,
     threadsLoading,
