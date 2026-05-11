@@ -3,12 +3,7 @@
 These are loaded by the LangGraph API platform via the langgraph.json
 checkpointer/store config fields.
 """
-import os
-
-POSTGRES_URI = os.getenv(
-    "POSTGRES_URI",
-    "postgresql://postgres:postgres@localhost:5432/postgres",
-)
+from .config import POSTGRES_URI
 
 
 def create_checkpointer():

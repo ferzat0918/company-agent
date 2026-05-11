@@ -5,6 +5,8 @@ __pycache__/
 venv/
 .env
 .env.local
+.env*.local
+infra/.env
 
 # Node
 node_modules/

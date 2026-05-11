@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from typing import Optional
 import httpx
 
+from .config import SUPABASE_URL, SUPABASE_ANON_KEY
+
 
 @dataclass
 class UserProfile:
@@ -16,8 +18,14 @@ class ProfileNotFound(Exception):
     pass
 
 
-async def get_profile(user_id: str, supabase_url: str = "http://localhost:8000", anon_key: str = "") -> Optional[UserProfile]:
+async def get_profile(
+    user_id: str,
+    supabase_url: str | None = None,
+    anon_key: str | None = None,
+) -> Optional[UserProfile]:
     """Query user profile by user_id from Supabase profiles table."""
+    supabase_url = supabase_url or SUPABASE_URL
+    anon_key = anon_key or SUPABASE_ANON_KEY
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(
             f"{supabase_url}/rest/v1/profiles",
