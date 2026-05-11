@@ -15,6 +15,7 @@ import {
 } from "@langchain/langgraph-sdk/react-ui";
 import { useQueryState } from "nuqs";
 import { useThreads } from "./Thread";
+import { useAuth } from "./Auth";
 import { toast } from "sonner";
 
 export type StateType = { messages: Message[]; ui?: UIMessage[] };
@@ -40,13 +41,11 @@ async function sleep(ms = 4000) {
 
 async function checkGraphStatus(
   apiUrl: string,
-  apiKey: string | null,
-  authScheme?: string,
+  token: string | null,
 ): Promise<boolean> {
   try {
     const headers = new Headers();
-    if (apiKey) headers.set("X-Api-Key", apiKey);
-    if (authScheme) headers.set("X-Auth-Scheme", authScheme);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
 
     const res = await fetch(`${apiUrl}/info`, {
       headers,
@@ -71,11 +70,16 @@ const StreamSession = ({
 }) => {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { getThreads, setThreads } = useThreads();
+  const { session } = useAuth();
+  const token = session?.access_token ?? null;
+
   const streamValue = useTypedStream({
     apiUrl: HARDCODED_API_URL,
     assistantId: HARDCODED_ASSISTANT_ID,
     threadId: threadId ?? null,
     fetchStateHistory: true,
+    // Pass the Supabase JWT as Authorization header
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     onCustomEvent: (event, options) => {
       if (isUIMessage(event) || isRemoveUIMessage(event)) {
         options.mutate((prev) => {
@@ -93,7 +97,7 @@ const StreamSession = ({
   });
 
   useEffect(() => {
-    checkGraphStatus(HARDCODED_API_URL, null).then((ok) => {
+    checkGraphStatus(HARDCODED_API_URL, token).then((ok) => {
       if (!ok) {
         toast.error("Failed to connect to LangGraph server", {
           description: () => (
@@ -108,7 +112,7 @@ const StreamSession = ({
         });
       }
     });
-  }, []);
+  }, [token]);
 
   return (
     <StreamContext.Provider value={streamValue}>

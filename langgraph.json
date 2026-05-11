@@ -4,5 +4,8 @@
   "graphs": {
     "company_agent": "./backend/src/graph.py:app"
   },
+  "auth": {
+    "path": "./backend/src/auth.py:auth"
+  },
   "env": "./.env"
 }
