@@ -1,3 +1,6 @@
+# Usage:  docker compose --env-file ../.env up -d
+# The project uses a single .env at the repo root.
+
 services:
   postgres:
     image: supabase/postgres:15.14.1.121

@@ -1,35 +1,39 @@
-# Python
+# ─── Environment / Secrets ──────────────────────────────────────
+# Single wildcard covers root, infra/, skills/, and any future sub-dirs
+**/.env
+**/.env.local
+**/.env*.local
+
+# ─── Python ─────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 venv/
-.env
-.env.local
-.env*.local
-infra/.env
 
-# Node
+# ─── Node ───────────────────────────────────────────────────────
 node_modules/
 .next/
+out/
 dist/
 build/
 
-# Editor
+# ─── Editor ─────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
-.DS_Store
 
-# OS
+# ─── OS ─────────────────────────────────────────────────────────
+.DS_Store
 Thumbs.db
 
-# Local data
+# ─── Local data ─────────────────────────────────────────────────
 *.db
 *.sqlite
 data/
 logs/
 
-# Secrets
+# ─── Secrets ────────────────────────────────────────────────────
 *.pem
 *.key
 secrets/

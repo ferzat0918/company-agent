@@ -5,15 +5,18 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
+const PROJECT_ROOT = path.resolve(ROOT, '../..');
 const ASSETS = path.join(ROOT, 'assets');
 
+// Read env vars from the project-root .env (single source of truth)
+const envFile = path.join(PROJECT_ROOT, '.env');
 const env = Object.fromEntries(
-  (await fs.readFile(path.join(ROOT, '.env'), 'utf8'))
+  (await fs.readFile(envFile, 'utf8'))
     .split('\n').filter(Boolean).map(l => l.split('=').map(s => s.trim()))
 );
 const TOKEN = env.FIGMA_TOKEN;
 const FILE_KEY = env.FIGMA_FILE_KEY;
-if (!TOKEN || !FILE_KEY) throw new Error('Missing FIGMA_TOKEN or FIGMA_FILE_KEY in .env');
+if (!TOKEN || !FILE_KEY) throw new Error('Missing FIGMA_TOKEN or FIGMA_FILE_KEY in project root .env');
 
 const headers = { 'X-Figma-Token': TOKEN };
 

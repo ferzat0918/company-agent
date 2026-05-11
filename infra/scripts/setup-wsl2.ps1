@@ -77,7 +77,7 @@ if (-not (Test-Path (Join-Path $InfraDir "docker-compose.yml"))) {
 
 Push-Location $InfraDir
 try {
-    docker compose up -d
+    docker compose --env-file "$EnvFile" up -d
     if ($LASTEXITCODE -eq 0) {
         Write-Host ""
         Write-Host "=== Setup complete! ===" -ForegroundColor Cyan

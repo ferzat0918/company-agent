@@ -1,6 +1,6 @@
 {
   "python_version": "3.11",
-  "dependencies": ["."],
+  "dependencies": ["./backend"],
   "graphs": {
     "company_agent": "./backend/src/graph.py:app"
   },

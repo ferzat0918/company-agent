@@ -14,12 +14,20 @@
 ## 目录结构
 
 ```
-/backend/       LangGraph Server 代码 (Python)
-/frontend/      Agent Chat UI fork (Next.js)
-/skills/        Agent Skills (SKILL.md 平铺)
-/prompts/       System Prompt 模板
-/infra/         Docker Compose / 部署脚本
-/docs/          设计文档与规范
+company-agent/
+├── .env                    # 唯一环境变量 (git-ignored)
+├── .env.example            # 模板
+├── langgraph.json          # LangGraph Server 入口配置
+│
+├── backend/                LangGraph Server 代码 (Python)
+│   ├── src/
+│   └── tests/
+├── frontend/               Agent Chat UI (Next.js)
+│   └── agent-chat-ui/
+├── skills/                 Agent Skills (SKILL.md 平铺)
+├── prompts/                System Prompt 模板
+├── infra/                  Docker Compose / 部署脚本
+└── docs/                   设计文档
 ```
 
 ## 快速开始
@@ -51,7 +59,7 @@ cp .env.example .env
 
 ```bash
 cd infra
-docker compose up -d
+docker compose --env-file ../.env up -d
 # 首次启动后访问 http://localhost:8081 (Supabase Studio)
 # 创建 auth.users, 并在 SQL Editor 中执行:
 ```
@@ -99,7 +107,7 @@ npm run dev
 
 ```bash
 cd infra
-docker compose up -d --build
+docker compose --env-file ../.env up -d --build
 # 访问 http://<内网 IP>
 ```
 
