@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
 
+const STORAGE_BASE =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:8000";
+
 interface CodeHeaderProps {
   language?: string;
   code: string;
@@ -183,6 +186,45 @@ const defaultComponents: any = {
       {...props}
     />
   ),
+  img: ({
+    src,
+    alt,
+    ...props
+  }: {
+    src?: string;
+    alt?: string;
+    className?: string;
+  }) => {
+    if (!src) return null;
+    // Rewrite relative skill paths to Supabase Storage public URLs
+    let resolvedSrc = src;
+    if (
+      !src.startsWith("http://") &&
+      !src.startsWith("https://") &&
+      !src.startsWith("data:")
+    ) {
+      resolvedSrc = `${STORAGE_BASE}/storage/v1/object/public/${src}`;
+    }
+    return (
+      <img
+        src={resolvedSrc}
+        alt={alt || "image"}
+        loading="lazy"
+        className="my-3 max-w-full rounded-[2px] border border-[var(--umx-line)]"
+        style={{ maxHeight: "480px" }}
+        onError={(e) => {
+          const target = e.currentTarget;
+          target.style.display = "none";
+          const fallback = document.createElement("div");
+          fallback.className =
+            "my-3 flex items-center gap-2 rounded-[2px] border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]";
+          fallback.textContent = `⚠ IMAGE UNAVAILABLE: ${alt || src}`;
+          target.parentNode?.insertBefore(fallback, target.nextSibling);
+        }}
+        {...props}
+      />
+    );
+  },
   pre: ({ className, ...props }: { className?: string }) => (
     <pre
       className={cn(

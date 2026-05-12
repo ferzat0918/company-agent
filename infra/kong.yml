@@ -7,7 +7,7 @@ plugins:
   - name: cors
     config:
       origins:
-        - "http://192.168.1.160"
+        - "http://192.168.1.158"
         - "http://localhost"
         - "http://localhost:3000"
       methods:
@@ -45,7 +45,7 @@ services:
           - /rest/v1
 
   - name: storage-service
-    url: http://gotrue:9999
+    url: http://storage:5000
     routes:
       - name: storage-route
         paths:
