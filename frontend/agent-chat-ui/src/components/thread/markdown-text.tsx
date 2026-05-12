@@ -194,11 +194,20 @@ const defaultComponents: any = {
     className?: string;
   }) => {
     if (!src) return null;
-    // Rewrite relative paths to absolute (nginx serves /skills/ from mounted volume)
-    const resolvedSrc =
-      src.startsWith("http") || src.startsWith("data:") || src.startsWith("/")
-        ? src
-        : `/${src}`;
+    // Rewrite paths so nginx can serve skill assets:
+    //   file:///skills/...  →  /skills/...   (strip file:// protocol)
+    //   skills/...          →  /skills/...   (prepend /)
+    //   http(s)://... or data:... or /...    →  keep as-is
+    let resolvedSrc = src;
+    if (src.startsWith("file:///")) {
+      resolvedSrc = src.replace("file://", "");
+    } else if (
+      !src.startsWith("http") &&
+      !src.startsWith("data:") &&
+      !src.startsWith("/")
+    ) {
+      resolvedSrc = `/${src}`;
+    }
     return (
       <img
         src={resolvedSrc}
