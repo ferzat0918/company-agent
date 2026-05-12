@@ -13,6 +13,13 @@ load_dotenv()
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
+# Multi-key support: comma-separated list for round-robin load balancing
+# e.g. DEEPSEEK_API_KEYS=sk-key1,sk-key2,sk-key3
+_raw_keys = os.getenv("DEEPSEEK_API_KEYS", "")
+DEEPSEEK_API_KEYS: list[str] = [
+    k.strip() for k in _raw_keys.split(",") if k.strip()
+] or ([DEEPSEEK_API_KEY] if DEEPSEEK_API_KEY else [])
+
 # ─── Supabase ───────────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:8000")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")

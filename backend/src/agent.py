@@ -2,14 +2,23 @@
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from .chat_models import ChatDeepSeekThinking
-from .config import DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+from .round_robin import RoundRobinChatModel
+from .config import DEEPSEEK_API_KEY, DEEPSEEK_API_KEYS, DEEPSEEK_MODEL
 from .skills_loader import get_skills_config, validate_skills
 
-_llm = ChatDeepSeekThinking(
-    model=DEEPSEEK_MODEL,
-    api_key=DEEPSEEK_API_KEY,
-    temperature=0.3,
-)
+# Use round-robin when multiple keys are configured
+if len(DEEPSEEK_API_KEYS) > 1:
+    _llm = RoundRobinChatModel(
+        api_keys=DEEPSEEK_API_KEYS,
+        model=DEEPSEEK_MODEL,
+        temperature=0.3,
+    )
+else:
+    _llm = ChatDeepSeekThinking(
+        model=DEEPSEEK_MODEL,
+        api_key=DEEPSEEK_API_KEY,
+        temperature=0.3,
+    )
 
 # Validate skills on startup
 skill_errors = validate_skills()
