@@ -130,7 +130,7 @@ export function Thread() {
   );
   const [hideThinking, setHideThinking] = useQueryState(
     "hideThinking",
-    parseAsBoolean.withDefault(true),
+    parseAsBoolean.withDefault(false),
   );
   const [input, setInput] = useState("");
   const {

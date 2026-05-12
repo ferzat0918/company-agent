@@ -182,7 +182,7 @@ export function AssistantMessage({
   );
   const [hideThinking] = useQueryState(
     "hideThinking",
-    parseAsBoolean.withDefault(true),
+    parseAsBoolean.withDefault(false),
   );
 
   const thread = useStreamContext();
