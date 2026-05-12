@@ -307,6 +307,20 @@ const defaultComponents: any = {
       const language = match[1];
       const code = String(children).replace(/\n$/, "");
 
+      // Large code blocks (e.g. SVG paths) cause browser lag with
+      // syntax highlighting — fall back to plain text rendering
+      const TOO_LARGE = 5000;
+      if (code.length > TOO_LARGE) {
+        return (
+          <>
+            <CodeHeader language={language} code={code} />
+            <pre className="max-h-[400px] overflow-auto rounded-b-lg bg-black p-4 text-xs leading-relaxed text-gray-300">
+              <code>{code}</code>
+            </pre>
+          </>
+        );
+      }
+
       return (
         <>
           <CodeHeader
