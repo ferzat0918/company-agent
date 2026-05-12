@@ -112,7 +112,7 @@ export function AssistantMessage({
   const contentString = getContentString(content);
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
-    parseAsBoolean.withDefault(false),
+    parseAsBoolean.withDefault(true),
   );
 
   const thread = useStreamContext();
@@ -143,6 +143,15 @@ export function AssistantMessage({
   const isToolResult = message?.type === "tool";
 
   if (isToolResult && hideToolCalls) {
+    return null;
+  }
+
+  // Hide AI messages that contain only tool calls and no text
+  const isToolOnlyMessage =
+    !isToolResult &&
+    contentString.length === 0 &&
+    (hasToolCalls || hasAnthropicToolCalls);
+  if (isToolOnlyMessage && hideToolCalls) {
     return null;
   }
 
