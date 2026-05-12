@@ -15,6 +15,7 @@ import { ThreadView } from "../agent-inbox";
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { GenericInterruptView } from "./generic-interrupt";
 import { useArtifact } from "../artifact";
+import { useState } from "react";
 
 function CustomComponent({
   message,
@@ -99,6 +100,71 @@ function Interrupt({
   );
 }
 
+function getThinkingContent(message: Message | undefined): string {
+  if (!message) return "";
+  // DeepSeek: additional_kwargs.reasoning_content
+  const ak = (message as Record<string, any>).additional_kwargs;
+  if (ak?.reasoning_content && typeof ak.reasoning_content === "string") {
+    return ak.reasoning_content;
+  }
+  // Anthropic: content blocks with type "thinking"
+  if (Array.isArray(message.content)) {
+    const thinking = message.content
+      .filter((c: any) => c.type === "thinking" && c.thinking)
+      .map((c: any) => c.thinking)
+      .join("\n\n");
+    if (thinking) return thinking;
+  }
+  // Also check response_metadata
+  const rm = (message as Record<string, any>).response_metadata;
+  if (rm?.reasoning_content && typeof rm.reasoning_content === "string") {
+    return rm.reasoning_content;
+  }
+  return "";
+}
+
+function ThinkingBlock({
+  message,
+  hideThinking,
+}: {
+  message: Message | undefined;
+  hideThinking: boolean;
+}) {
+  const thinking = getThinkingContent(message);
+  const [expanded, setExpanded] = useState(false);
+
+  if (!thinking) return null;
+  if (hideThinking && !expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="flex items-center gap-2 border-l-2 border-[var(--umx-text-dim)] pl-4 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)] transition-colors hover:text-[var(--umx-acid)]"
+      >
+        <span>▸ THINKING</span>
+        <span className="normal-case tracking-normal text-[9px]">
+          ({thinking.length} chars — click to expand)
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="border-l-2 border-[var(--umx-text-dim)] pl-4 py-0.5">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)] transition-colors hover:text-[var(--umx-acid)]"
+      >
+        <span>{expanded || !hideThinking ? "▾" : "▸"} THINKING</span>
+      </button>
+      <div className="max-h-[300px] overflow-y-auto rounded-[2px] bg-[var(--umx-bg-2)] p-3 text-[12px] leading-relaxed text-[var(--umx-text-dim)]">
+        <MarkdownText>{thinking}</MarkdownText>
+      </div>
+    </div>
+  );
+}
+
 export function AssistantMessage({
   message,
   isLoading,
@@ -112,6 +178,10 @@ export function AssistantMessage({
   const contentString = getContentString(content);
   const [hideToolCalls] = useQueryState(
     "hideToolCalls",
+    parseAsBoolean.withDefault(true),
+  );
+  const [hideThinking] = useQueryState(
+    "hideThinking",
     parseAsBoolean.withDefault(true),
   );
 
@@ -176,6 +246,9 @@ export function AssistantMessage({
               </span>
               <span className="h-px flex-1 bg-[var(--umx-line)]" />
             </div>
+
+            {/* Thinking / Reasoning content */}
+            <ThinkingBlock message={message} hideThinking={hideThinking ?? true} />
 
             {contentString.length > 0 && (
               <div className="border-l-2 border-[var(--umx-violet)] pl-4 py-0.5 text-[var(--umx-white)]">

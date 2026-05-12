@@ -128,6 +128,10 @@ export function Thread() {
     "hideToolCalls",
     parseAsBoolean.withDefault(true),
   );
+  const [hideThinking, setHideThinking] = useQueryState(
+    "hideThinking",
+    parseAsBoolean.withDefault(true),
+  );
   const [input, setInput] = useState("");
   const {
     contentBlocks,
@@ -517,7 +521,22 @@ export function Thread() {
                               htmlFor="render-tool-calls"
                               className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)]"
                             >
-                              HIDE TOOL CALLS
+                              HIDE TOOLS
+                            </Label>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="render-thinking"
+                              checked={hideThinking ?? false}
+                              onCheckedChange={setHideThinking}
+                            />
+                            <Label
+                              htmlFor="render-thinking"
+                              className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-text-dim)]"
+                            >
+                              HIDE THINKING
                             </Label>
                           </div>
                         </div>
