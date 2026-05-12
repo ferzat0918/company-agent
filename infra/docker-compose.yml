@@ -186,6 +186,8 @@ services:
       - "80:80"
     volumes:
       - ../frontend/agent-chat-ui/out:/usr/share/nginx/html:ro
+      - ../skills:/srv/skills:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - langgraph
 

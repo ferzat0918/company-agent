@@ -15,8 +15,6 @@ import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
 
-const STORAGE_BASE =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:8000";
 
 interface CodeHeaderProps {
   language?: string;
@@ -196,15 +194,11 @@ const defaultComponents: any = {
     className?: string;
   }) => {
     if (!src) return null;
-    // Rewrite relative skill paths to Supabase Storage public URLs
-    let resolvedSrc = src;
-    if (
-      !src.startsWith("http://") &&
-      !src.startsWith("https://") &&
-      !src.startsWith("data:")
-    ) {
-      resolvedSrc = `${STORAGE_BASE}/storage/v1/object/public/${src}`;
-    }
+    // Rewrite relative paths to absolute (nginx serves /skills/ from mounted volume)
+    const resolvedSrc =
+      src.startsWith("http") || src.startsWith("data:") || src.startsWith("/")
+        ? src
+        : `/${src}`;
     return (
       <img
         src={resolvedSrc}
