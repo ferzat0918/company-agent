@@ -216,12 +216,14 @@ export function AssistantMessage({
     return null;
   }
 
-  // Hide AI messages that contain only tool calls and no text
+  // Hide AI messages that contain only tool calls and no text,
+  // BUT keep visible if they have thinking/reasoning content
+  const hasThinking = !!getThinkingContent(message);
   const isToolOnlyMessage =
     !isToolResult &&
     contentString.length === 0 &&
     (hasToolCalls || hasAnthropicToolCalls);
-  if (isToolOnlyMessage && hideToolCalls) {
+  if (isToolOnlyMessage && hideToolCalls && !hasThinking) {
     return null;
   }
 
