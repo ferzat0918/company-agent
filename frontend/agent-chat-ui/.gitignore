@@ -28,3 +28,6 @@ dist-ssr
 .env
 .next/
 next-env.d.ts
+
+# Dev symlink to skills (production uses nginx mount)
+public/skills
