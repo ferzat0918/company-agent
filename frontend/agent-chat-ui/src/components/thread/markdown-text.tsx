@@ -61,6 +61,105 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   );
 };
 
+function MarkdownImage({
+  src,
+  alt,
+}: {
+  src?: string;
+  alt?: string;
+}) {
+  // Rewrite paths so nginx can serve skill assets:
+  //   file:///skills/...  →  /skills/...   (strip file:// protocol)
+  //   skills/...          →  /skills/...   (prepend /)
+  //   http(s)://... or data:... or /...    →  keep as-is
+  let resolvedSrc = src ?? "";
+  if (resolvedSrc.startsWith("file:///")) {
+    resolvedSrc = resolvedSrc.replace("file://", "");
+  } else if (
+    !resolvedSrc.startsWith("http") &&
+    !resolvedSrc.startsWith("data:") &&
+    !resolvedSrc.startsWith("/")
+  ) {
+    resolvedSrc = `/${resolvedSrc}`;
+  }
+
+  const isSvg = resolvedSrc.toLowerCase().endsWith(".svg");
+  const [bgMode, setBgMode] = useState<"light" | "dark">(isSvg ? "light" : "light");
+  const [autoDetected, setAutoDetected] = useState(false);
+
+  const isLight = bgMode === "light";
+
+  if (!src) return null;
+
+  return (
+    <div className="group/img relative my-3 inline-block max-w-full">
+      <div
+        className="overflow-hidden rounded-[4px] border border-[var(--umx-line)] p-2 transition-colors duration-200"
+        style={{
+          background: isLight
+            ? "linear-gradient(135deg, #f8f8f8 0%, #e8e8e8 100%)"
+            : "transparent",
+        }}
+      >
+        <img
+          src={resolvedSrc}
+          alt={alt || "image"}
+          loading="lazy"
+          className="max-w-full rounded-[2px]"
+          style={{ maxHeight: "480px" }}
+          onLoad={(e) => {
+            if (isSvg || autoDetected) return;
+            // Detect image brightness using Canvas
+            try {
+              const img = e.currentTarget;
+              const canvas = document.createElement("canvas");
+              const size = 32;
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) return;
+              ctx.drawImage(img, 0, 0, size, size);
+              const data = ctx.getImageData(0, 0, size, size).data;
+              let totalBrightness = 0;
+              let opaquePixels = 0;
+              for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] < 30) continue;
+                opaquePixels++;
+                totalBrightness +=
+                  0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+              }
+              const avgBright =
+                opaquePixels > 0 ? totalBrightness / opaquePixels : 128;
+              // Bright image → no need for light bg
+              if (avgBright > 140) setBgMode("dark");
+              setAutoDetected(true);
+            } catch {
+              setAutoDetected(true);
+            }
+          }}
+          onError={(e) => {
+            const target = e.currentTarget;
+            target.style.display = "none";
+            const fallback = document.createElement("div");
+            fallback.className =
+              "flex items-center gap-2 px-4 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]";
+            fallback.textContent = `⚠ IMAGE UNAVAILABLE: ${alt || src}`;
+            target.parentNode?.insertBefore(fallback, target.nextSibling);
+          }}
+        />
+      </div>
+      {/* Light/Dark toggle — visible on hover */}
+      <button
+        type="button"
+        onClick={() => setBgMode((m) => (m === "light" ? "dark" : "light"))}
+        className="absolute right-2 top-2 rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--umx-text-dim)] opacity-0 transition-opacity group-hover/img:opacity-100"
+      >
+        {isLight ? "◐ DARK" : "◑ LIGHT"}
+      </button>
+    </div>
+  );
+}
+
 const defaultComponents: any = {
   h1: ({ className, ...props }: { className?: string }) => (
     <h1
@@ -184,50 +283,7 @@ const defaultComponents: any = {
       {...props}
     />
   ),
-  img: ({
-    src,
-    alt,
-    ...props
-  }: {
-    src?: string;
-    alt?: string;
-    className?: string;
-  }) => {
-    if (!src) return null;
-    // Rewrite paths so nginx can serve skill assets:
-    //   file:///skills/...  →  /skills/...   (strip file:// protocol)
-    //   skills/...          →  /skills/...   (prepend /)
-    //   http(s)://... or data:... or /...    →  keep as-is
-    let resolvedSrc = src;
-    if (src.startsWith("file:///")) {
-      resolvedSrc = src.replace("file://", "");
-    } else if (
-      !src.startsWith("http") &&
-      !src.startsWith("data:") &&
-      !src.startsWith("/")
-    ) {
-      resolvedSrc = `/${src}`;
-    }
-    return (
-      <img
-        src={resolvedSrc}
-        alt={alt || "image"}
-        loading="lazy"
-        className="my-3 max-w-full rounded-[2px] border border-[var(--umx-line)]"
-        style={{ maxHeight: "480px" }}
-        onError={(e) => {
-          const target = e.currentTarget;
-          target.style.display = "none";
-          const fallback = document.createElement("div");
-          fallback.className =
-            "my-3 flex items-center gap-2 rounded-[2px] border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-4 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]";
-          fallback.textContent = `⚠ IMAGE UNAVAILABLE: ${alt || src}`;
-          target.parentNode?.insertBefore(fallback, target.nextSibling);
-        }}
-        {...props}
-      />
-    );
-  },
+  img: MarkdownImage,
   pre: ({ className, ...props }: { className?: string }) => (
     <pre
       className={cn(
