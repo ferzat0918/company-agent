@@ -92,9 +92,9 @@ function MarkdownImage({
   if (!src) return null;
 
   return (
-    <div className="group/img relative my-3 inline-block max-w-full">
-      <div
-        className="overflow-hidden rounded-[4px] border border-[var(--umx-line)] p-2 transition-colors duration-200"
+    <span className="group/img relative my-3 inline-block max-w-full">
+      <span
+        className="block overflow-hidden rounded-[4px] border border-[var(--umx-line)] p-2 transition-colors duration-200"
         style={{
           background: isLight
             ? "linear-gradient(135deg, #f8f8f8 0%, #e8e8e8 100%)"
@@ -140,14 +140,14 @@ function MarkdownImage({
           onError={(e) => {
             const target = e.currentTarget;
             target.style.display = "none";
-            const fallback = document.createElement("div");
+            const fallback = document.createElement("span");
             fallback.className =
               "flex items-center gap-2 px-4 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]";
             fallback.textContent = `⚠ IMAGE UNAVAILABLE: ${alt || src}`;
             target.parentNode?.insertBefore(fallback, target.nextSibling);
           }}
         />
-      </div>
+      </span>
       {/* Light/Dark toggle — visible on hover */}
       <button
         type="button"
@@ -156,7 +156,7 @@ function MarkdownImage({
       >
         {isLight ? "◐ DARK" : "◑ LIGHT"}
       </button>
-    </div>
+    </span>
   );
 }
 
