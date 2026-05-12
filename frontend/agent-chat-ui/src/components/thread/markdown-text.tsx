@@ -334,6 +334,31 @@ const defaultComponents: any = {
   },
 };
 
+// Preprocess: convert bare image paths to markdown image syntax
+// e.g. "/skills/umx-brand-guide/assets/logo/logo-full.svg" → "![logo-full.svg](/skills/...)"
+const IMAGE_EXT = /\.(svg|png|jpe?g|gif|webp|bmp|ico)$/i;
+const BARE_PATH_LINE =
+  /^(`?)(\/?(?:skills|assets|images?|files?|uploads?|public)\/[^\s`]+)(`?)$/;
+
+function preprocessMarkdown(md: string): string {
+  return md
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      // Skip lines that are already markdown images or inside code blocks
+      if (trimmed.startsWith("![") || trimmed.startsWith("```")) return line;
+      // Match bare paths (with or without backtick wrapping)
+      const match = trimmed.match(BARE_PATH_LINE);
+      if (match && IMAGE_EXT.test(match[2])) {
+        const path = match[2];
+        const filename = path.split("/").pop() || "image";
+        return `![${filename}](${path})`;
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
   return (
     <div className="markdown-content">
@@ -342,7 +367,7 @@ const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
         rehypePlugins={[rehypeKatex]}
         components={defaultComponents}
       >
-        {children}
+        {preprocessMarkdown(children)}
       </ReactMarkdown>
     </div>
   );
