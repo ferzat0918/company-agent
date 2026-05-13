@@ -13,6 +13,11 @@ COPY backend/ ./backend/
 # Copy root langgraph.json (contains auth config)
 COPY langgraph.json ./langgraph.json
 
+# Bake skills and prompts into the image so prod doesn't need bind mounts.
+# In dev, docker-compose.yml still bind-mounts these paths over the baked copies.
+COPY skills/ ./skills/
+COPY prompts/ ./prompts/
+
 # Pre-install Python deps at build time (langgraph dev will verify/reuse)
 RUN pip install --no-cache-dir -e "./backend[dev]"
 

@@ -1,0 +1,16 @@
+# Frontend image: nginx + pre-built static + skills assets.
+# Build context must be the repo root (so `frontend/` and `skills/` are visible).
+#
+# Build from repo root before pushing:
+#   pushd frontend/agent-chat-ui && npm run build && popd
+#   docker build -f infra/Dockerfile.frontend -t ghcr.io/<owner>/company-agent-frontend:<tag> .
+#
+# `out/` is the Next.js static export; it must exist before `docker build`.
+
+FROM nginx:alpine
+
+COPY frontend/agent-chat-ui/out/ /usr/share/nginx/html/
+COPY skills/ /srv/skills/
+COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
