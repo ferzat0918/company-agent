@@ -119,8 +119,11 @@ services:
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
     volumes:
-      - ../skills:/app/skills
-      - ../prompts:/app/prompts
+      # :ro hardens the container — even if the agent's permission rules
+      # are ever weakened, the kernel will still reject writes into these
+      # mounts (which point back to the host's skills/ and prompts/).
+      - ../skills:/app/skills:ro
+      - ../prompts:/app/prompts:ro
       - langgraph-data:/app/.langgraph_api
     depends_on:
       postgres:

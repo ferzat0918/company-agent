@@ -1,10 +1,45 @@
 """Deep Agent configuration with SubAgents and SkillsMiddleware"""
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
+from deepagents.middleware.filesystem import FilesystemPermission
 from .chat_models import ChatDeepSeekThinking
 from .round_robin import RoundRobinChatModel
 from .config import DEEPSEEK_API_KEY, DEEPSEEK_API_KEYS, DEEPSEEK_MODEL
 from .skills_loader import get_skills_config, validate_skills
+
+# Filesystem lockdown for every user-facing agent call.
+#
+# Deep Agents exposes ls/read/write/edit/glob/grep tools by default. For a
+# chat assistant whose job is copywriting/HR/sales, none of these need to
+# touch the host. Without this, anyone chatting with the agent can read
+# /app/backend source, write to /app/skills (which is bind-mounted back to
+# the host), or edit prompts — i.e. full RCE through the chat UI.
+#
+# Rules are first-match-wins. Listed order:
+#   1. Allow read inside /skills (so SkillsMiddleware + any read tool work)
+#   2. Deny read everywhere else (blocks ls / read_file / glob / grep)
+#   3. Deny write everywhere (blocks write_file / edit_file)
+#
+# Note: SkillsMiddleware reads skill files via the backend directly, which
+# bypasses these permission rules — so skills still load even though tool
+# reads are denied outside /skills.
+AGENT_FS_PERMISSIONS = [
+    FilesystemPermission(
+        operations=["read"],
+        paths=["/skills", "/skills/**"],
+        mode="allow",
+    ),
+    FilesystemPermission(
+        operations=["read"],
+        paths=["/**"],
+        mode="deny",
+    ),
+    FilesystemPermission(
+        operations=["write"],
+        paths=["/**"],
+        mode="deny",
+    ),
+]
 
 # Use round-robin when multiple keys are configured
 if len(DEEPSEEK_API_KEYS) > 1:
@@ -67,4 +102,5 @@ agent = create_deep_agent(
     subagents=SUBAGENTS,
     skills=skills_dirs,
     backend=FilesystemBackend(root_dir=".", virtual_mode=True),
+    permissions=AGENT_FS_PERMISSIONS,
 )
