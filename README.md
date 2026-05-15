@@ -76,6 +76,47 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 
 ---
 
+## 公网访问（Cloudflare Tunnel）
+
+如果想让公司外的人也能用（手机、出差），通过 Cloudflare Tunnel 暴露到公网，**不需要公网 IP、不需要动路由器**。
+
+### 在 Cloudflare 网页（任意电脑浏览器）
+
+1. **创建隧道**：[one.dash.cloudflare.com](https://one.dash.cloudflare.com) → Networks → Tunnels → **Create a tunnel** → 类型选 `Cloudflared` → 起名（如 `company-agent`）→ Save
+2. **拿 token**：下一页会显示一段安装命令，里面有 `--token eyJ...`，把 `eyJ` 开头那一串复制下来
+3. **配公开域名**：点 Next → **Public Hostname** 标签 →
+   - Subdomain: `agent`
+   - Domain: `umxlab.com`
+   - Service Type: `HTTP`
+   - URL: `frontend:80`
+   - Save Hostname
+4. **加访问控制**（推荐）：[one.dash.cloudflare.com](https://one.dash.cloudflare.com) → Access → Applications → **Add an application** → Self-hosted →
+   - Application name: 任意
+   - Subdomain: `agent`，Domain: `umxlab.com`
+   - Next → 新建一个 Policy，比如 "Emails ending in @umxlab.com"，加上你想放行的邮箱后缀或具体邮箱
+   - Save
+
+### 在部署的电脑
+
+`.env` 里填两个变量：
+
+```
+CLOUDFLARED_TOKEN=eyJ...（刚才复制的那串）
+SITE_URL=https://agent.umxlab.com
+```
+
+然后：
+
+```
+docker compose -f infra/docker-compose.yml --env-file .env up -d
+```
+
+容器会自己起 cloudflared 隧道，访问 `https://agent.umxlab.com` —— 先经过 Cloudflare Access 邮箱验证，通过后才能看到登录页。
+
+> 不想用公网？把 `CLOUDFLARED_TOKEN` 留空，cloudflared 容器自己退出，LAN 部署不受影响。
+
+---
+
 ## 架构
 
 - **Agent 编排**：LangGraph + Deep Agents（Supervisor → 4 SubAgents）
