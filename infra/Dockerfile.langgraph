@@ -27,5 +27,6 @@ RUN echo '{"python_version":"3.11","dependencies":["./backend"],"graphs":{"compa
 # Expose LangGraph server port
 EXPOSE 2024
 
-# Start LangGraph server
-CMD ["langgraph", "dev", "--config", "langgraph-docker.json", "--host", "0.0.0.0", "--port", "2024", "--no-browser"]
+# Start: initialize checkpoint/store tables (idempotent), then run the server.
+# This means a fresh Postgres deployment needs zero manual setup.
+CMD ["sh", "-c", "python /app/backend/scripts/init_db.py && exec langgraph dev --config langgraph-docker.json --host 0.0.0.0 --port 2024 --no-browser"]

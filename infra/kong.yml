@@ -1,33 +1,11 @@
-# Kong 声明式配置 — Supabase API 网关
-# 开发阶段最小配置。生产环境需添加认证、限流、日志等插件。
-_format_version: "3.0"
+# Kong declarative config — Supabase API gateway + LangGraph route.
+#
+# All browser traffic enters via nginx and is proxied to Kong over the docker
+# network. Because the browser only ever talks to nginx (same origin), CORS
+# is not triggered, so no CORS plugin is configured here. Restore it only if
+# you intend to expose Kong to direct cross-origin browser access.
 
-# 全局 CORS 插件 — 允许前端跨端口访问 Kong API
-plugins:
-  - name: cors
-    config:
-      origins:
-        - "http://192.168.1.158"
-        - "http://localhost"
-        - "http://localhost:3000"
-      methods:
-        - GET
-        - POST
-        - PUT
-        - PATCH
-        - DELETE
-        - OPTIONS
-      headers:
-        - Accept
-        - Authorization
-        - Content-Type
-        - apikey
-        - x-client-info
-        - x-supabase-api-version
-      exposed_headers:
-        - X-Total-Count
-      credentials: true
-      max_age: 3600
+_format_version: "3.0"
 
 services:
   - name: auth-service
@@ -57,3 +35,18 @@ services:
       - name: realtime-route
         paths:
           - /realtime/v1
+
+  # LangGraph agent backend. Streams SSE, so disable Kong's response
+  # buffering and bump timeouts (LLM generations can take minutes).
+  - name: langgraph-service
+    url: http://langgraph:2024
+    connect_timeout: 60000
+    read_timeout: 600000
+    write_timeout: 600000
+    routes:
+      - name: langgraph-route
+        paths:
+          - /agent/v1
+        strip_path: true
+        request_buffering: false
+        response_buffering: false

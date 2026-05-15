@@ -59,7 +59,10 @@ async function checkGraphStatus(
 }
 
 const HARDCODED_API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:2024";
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.origin}/agent/v1`
+    : "/agent/v1");
 const HARDCODED_ASSISTANT_ID =
   process.env.NEXT_PUBLIC_ASSISTANT_ID ?? "company_agent";
 

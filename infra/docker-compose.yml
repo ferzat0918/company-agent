@@ -30,7 +30,7 @@ services:
     ports:
       - "9999:9999"
     environment:
-      API_EXTERNAL_URL: http://localhost:9999
+      API_EXTERNAL_URL: ${SITE_URL}
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_admin:${POSTGRES_PASSWORD}@postgres:5432/postgres
