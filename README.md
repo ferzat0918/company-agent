@@ -80,28 +80,44 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d
 
 如果想让公司外的人也能用（手机、出差），通过 Cloudflare Tunnel 暴露到公网，**不需要公网 IP、不需要动路由器**。
 
-### 在 Cloudflare 网页（任意电脑浏览器）
+前提：你的域名已经托管在 Cloudflare（nameserver 指向 Cloudflare）。
 
-1. **创建隧道**：[one.dash.cloudflare.com](https://one.dash.cloudflare.com) → Networks → Tunnels → **Create a tunnel** → 类型选 `Cloudflared` → 起名（如 `company-agent`）→ Save
-2. **拿 token**：下一页会显示一段安装命令，里面有 `--token eyJ...`，把 `eyJ` 开头那一串复制下来
-3. **配公开域名**：点 Next → **Public Hostname** 标签 →
-   - Subdomain: `agent`
+> Cloudflare 的 UI 经常改名换路径，下面是 2026-05 的写法。如果某个菜单找不到，按关键词在 dashboard 搜一下：`Tunnels`、`Published application routes`、`Access applications`。
+
+### Step 1：创建隧道，拿 token
+
+1. 打开 [one.dash.cloudflare.com](https://one.dash.cloudflare.com)（Zero Trust 后台）
+2. 左侧 **Networks → Connectors → Cloudflare Tunnels** → **Create a tunnel**
+3. Connector 类型选 `Cloudflared` → 起个名（如 `company-agent`）→ Save
+4. 接下来显示一段 `docker run ... --token eyJ...` 的命令 → **只复制 `--token` 后面那一长串** `eyJ...`（**不要**真的去执行那条命令，你会通过 docker compose 来跑）
+
+### Step 2：配公开路由
+
+5. 创建完隧道，回到 **Networks → Connectors → Cloudflare Tunnels** 列表，找到你刚建的 → 点 **Edit**（不是点名字进去看）
+6. 切到 **Published application routes** 标签 → **Add a published application route**
+7. 填：
+   - Subdomain: `agent`（或你想要的）
    - Domain: `umxlab.com`
    - Service Type: `HTTP`
    - URL: `frontend:80`
-   - Save Hostname
-4. **加访问控制**（推荐）：[one.dash.cloudflare.com](https://one.dash.cloudflare.com) → Access → Applications → **Add an application** → Self-hosted →
-   - Application name: 任意
-   - Subdomain: `agent`，Domain: `umxlab.com`
-   - Next → 新建一个 Policy，比如 "Emails ending in @umxlab.com"，加上你想放行的邮箱后缀或具体邮箱
-   - Save
+   - Path: **留空**
+8. Save。Cloudflare 自动给 `agent.umxlab.com` 加 CNAME。
 
-### 在部署的电脑
+### Step 3：加访问控制（强烈推荐）
 
-`.env` 里填两个变量：
+9. 左侧 **Access controls → Applications** → **Create new application** → **Self-hosted**
+10. **Add public hostname** → Domain 下拉里选 `agent.umxlab.com`
+11. Application name: 任意；Session Duration: 24 hours 或随意
+12. Next → 新建一条 Policy：
+    - Policy name: 任意（如 `umxlab-employees`）
+    - Action: Allow
+    - Selector: `Emails ending in`，Value: `@umxlab.com` —— 或者用 `Emails` 加具体邮箱
+13. 一路 Next → Add application
+
+### Step 4：在部署的电脑改 `.env`
 
 ```
-CLOUDFLARED_TOKEN=eyJ...（刚才复制的那串）
+CLOUDFLARED_TOKEN=eyJ...（Step 1 第 4 步复制的那串）
 SITE_URL=https://agent.umxlab.com
 ```
 
@@ -111,9 +127,27 @@ SITE_URL=https://agent.umxlab.com
 docker compose -f infra/docker-compose.yml --env-file .env up -d
 ```
 
-容器会自己起 cloudflared 隧道，访问 `https://agent.umxlab.com` —— 先经过 Cloudflare Access 邮箱验证，通过后才能看到登录页。
+docker 会自动重建 cloudflared 和 gotrue 容器以应用新配置。
+
+### Step 5：验证
+
+打开 `https://agent.umxlab.com`：
+1. 先看到 Cloudflare Access 邮箱验证（输放行邮箱 → 收 OTP → 输验证码）
+2. 通过后才能进登录页
+3. 用 Supabase 账号登录 → 正常用
 
 > 不想用公网？把 `CLOUDFLARED_TOKEN` 留空，cloudflared 容器自己退出，LAN 部署不受影响。
+
+---
+
+## 远程管理 Supabase（可选）
+
+Supabase Studio 默认在 LAN 上可访问：`http://<host>:8081`（**自身没有登录**，所以**绝对不要直接暴露到公网**）。
+
+如果你想在外网也能改库，按照"公网访问"那一节再加一条路由，但 **Access policy 务必只放行你自己的邮箱**（不要用通配符）：
+- Subdomain: `studio`
+- URL: `studio:3000`
+- Access policy: Selector = `Emails`，Value = 你的邮箱（**不要**用 `Emails ending in`）
 
 ---
 
