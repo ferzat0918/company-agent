@@ -12,7 +12,7 @@ from deepagents.backends import FilesystemBackend
 from deepagents.middleware.filesystem import FilesystemPermission
 from .chat_models import ChatDeepSeekThinking
 from .round_robin import RoundRobinChatModel
-from .config import DEEPSEEK_API_KEY, DEEPSEEK_API_KEYS, DEEPSEEK_MODEL
+from .config import DEEPSEEK_API_KEY, DEEPSEEK_API_KEYS, DEEPSEEK_MODEL, TAVILY_API_KEY
 from .skills_loader import get_skills_config, validate_skills
 
 # ─── Prompt loader ──────────────────────────────────────────────
@@ -109,6 +109,19 @@ if skill_errors:
 
 skills_dirs = get_skills_config()
 
+# ─── Web search tool (Tavily) ───────────────────────────────────
+# Inherited by every SubAgent because none of them declare their own
+# `tools` field — see deepagents/graph.py:575 (inherit-from-parent logic).
+_agent_tools: list = []
+if TAVILY_API_KEY:
+    # Imported lazily so the package is only required when the key is set.
+    from langchain_tavily import TavilySearch
+    os.environ.setdefault("TAVILY_API_KEY", TAVILY_API_KEY)
+    _agent_tools.append(TavilySearch(max_results=5, topic="general"))
+    print("  ✓ Tavily web search enabled")
+else:
+    print("  ⚠ TAVILY_API_KEY not set — web search disabled")
+
 # ─── Load prompts from disk ─────────────────────────────────────
 print(f"Loading prompts from: {PROMPTS_DIR}/")
 
@@ -173,6 +186,7 @@ SUBAGENTS = [
 agent = create_deep_agent(
     name="company-agent",
     model=_llm,
+    tools=_agent_tools,
     system_prompt=_supervisor_prompt + _SUPERVISOR_SUFFIX,
     subagents=SUBAGENTS,
     skills=skills_dirs,

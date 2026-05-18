@@ -3,6 +3,7 @@ import { useThreads } from "@/providers/Thread";
 import { useAuth } from "@/providers/Auth";
 import { Thread } from "@langchain/langgraph-sdk";
 import { useEffect } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 import { getContentString } from "../utils";
@@ -14,7 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PanelRightOpen, PanelRightClose, SquarePen, LogOut, Trash2 } from "lucide-react";
+import { PanelRightOpen, PanelRightClose, SquarePen, LogOut, Trash2, UserCircle } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 function formatRelativeTime(iso?: string): string {
@@ -244,15 +245,27 @@ export default function ThreadHistory() {
               AUTHENTICATED
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Sign out"
-            onClick={signOut}
-            className="size-7 shrink-0 text-[var(--umx-text-dim)] hover:text-[var(--umx-acid)]"
-          >
-            <LogOut className="size-3.5" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="size-7 text-[var(--umx-text-dim)] hover:text-[var(--umx-acid)]"
+            >
+              <Link href="/profile" aria-label="Profile">
+                <UserCircle className="size-3.5" />
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Sign out"
+              onClick={signOut}
+              className="size-7 text-[var(--umx-text-dim)] hover:text-[var(--umx-acid)]"
+            >
+              <LogOut className="size-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
       <div className="lg:hidden">

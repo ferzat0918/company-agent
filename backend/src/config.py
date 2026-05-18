@@ -20,6 +20,10 @@ DEEPSEEK_API_KEYS: list[str] = [
     k.strip() for k in _raw_keys.split(",") if k.strip()
 ] or ([DEEPSEEK_API_KEY] if DEEPSEEK_API_KEY else [])
 
+# ─── Tavily Web Search ──────────────────────────────────────────
+# Empty = web search disabled (tool simply not registered).
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+
 # ─── Supabase ───────────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:8000")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
