@@ -16,7 +16,7 @@ services:
           - /auth/v1
 
   - name: rest-service
-    url: http://pgmeta:8080
+    url: http://postgrest:3000
     routes:
       - name: rest-route
         paths:

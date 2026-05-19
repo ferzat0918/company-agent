@@ -3,12 +3,13 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, Check, AlertCircle, MessageSquarePlus, ListChecks } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { UmxSymbol, UmxWordmark } from "@/components/icons/umx-logo";
 import { LoginPage } from "@/components/LoginPage";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 function UmxLoadingScreen() {
   return (
@@ -297,9 +298,46 @@ function PasswordCard() {
   );
 }
 
+function FeedbackCard({ onOpenModal }: { onOpenModal: () => void }) {
+  return (
+    <section>
+      <SectionLabel index="03" title="FEEDBACK & REQUESTS" />
+      <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-6">
+        <p
+          className="mb-6 font-body text-sm leading-relaxed text-[var(--umx-silver)]"
+        >
+          遇到问题或有新的功能需求？欢迎提交反馈，我们会尽快处理。
+        </p>
+        <div className="flex gap-3">
+          <Button
+            variant="acid"
+            size="lg"
+            className="flex-1 gap-2"
+            onClick={onOpenModal}
+          >
+            <MessageSquarePlus className="size-4" />
+            我要反馈
+          </Button>
+          <Link href="/profile/feedback" className="flex-1">
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full gap-2"
+            >
+              <ListChecks className="size-4" />
+              我的反馈
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ProfileContent() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -339,7 +377,9 @@ function ProfileContent() {
       <div className="mx-auto max-w-3xl space-y-12 px-8 py-12">
         <AccountInfoCard profile={profile} />
         <PasswordCard />
+        <FeedbackCard onOpenModal={() => setFeedbackOpen(true)} />
       </div>
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </main>
   );
 }
