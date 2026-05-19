@@ -130,14 +130,18 @@ skills_dirs = get_skills_config()
 
 
 def _user_id_from_runtime(runtime) -> str | None:
-    """从 runtime context 里抠 Supabase JWT 的 user_id。
+    """Resolve the requesting user's Supabase id from the LangGraph runtime.
 
-    auth.py 把 verify_supabase_jwt 返回值塞进 ctx；user_profile 在 LangGraph
-    平台运行时被映射为 runtime.context 字典的一个字段。
+    auth.py's verify_supabase_jwt returns ``{"identity": user_id, ...}``;
+    LangGraph wraps that in a ProxyUser and exposes it as
+    ``runtime.server_info.user.identity``.  (runtime.context is unrelated —
+    that's for graph-level user-provided context, which we don't use.)
     """
-    ctx = getattr(runtime, "context", None) or {}
-    profile = ctx.get("user_profile", {}) if isinstance(ctx, dict) else {}
-    return profile.get("user_id")
+    server_info = getattr(runtime, "server_info", None)
+    user = getattr(server_info, "user", None) if server_info else None
+    if user is None:
+        return None
+    return getattr(user, "identity", None)
 
 
 _memory_middleware = MemoryInjectMiddleware(

@@ -289,7 +289,9 @@ DO NOT USE THIS FOR：
 <memory>
 ## 长期记忆
 
-- 用 manage_memory(key, value) 记录用户偏好/历史决策
-- 用 search_memory(query) 检索过往交互记录
-- 优先参考历史偏好做路由判断（如用户上次指定了某个 SubAgent）
+记忆由 `memory` 工具管理。**别尝试 search / query / get 之类的动作** —— 工具只有 add / replace / remove 三种 action。
+
+读：**不用主动读**。每个 thread 开始时，当前用户已有的全部记忆会作为 SystemMessage 自动注入到你能看到的对话历史里（长这样：`══════ USER PROFILE / MEMORY [N% — used/limit chars] ══════`）。直接根据这些信息回答，不要怀疑它存不存在。
+
+写：根据 `memory` 工具自带的 "WHEN TO SAVE" 指南主动调用 `memory(action="add", target="user"|"memory", content="...")`。优先参考历史偏好做路由判断。
 </memory>
