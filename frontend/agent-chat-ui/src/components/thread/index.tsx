@@ -6,6 +6,7 @@ import { useStreamContext } from "@/providers/Stream";
 import { useState, FormEvent } from "react";
 import { Button } from "../ui/button";
 import { Checkpoint, Message } from "@langchain/langgraph-sdk";
+import { getContentString } from "./utils";
 import { AssistantMessage, AssistantMessageLoading } from "./messages/ai";
 import { HumanMessage } from "./messages/human";
 import {
@@ -413,6 +414,20 @@ export function Thread() {
                 <>
                   {messages
                     .filter((m) => !m.id?.startsWith(DO_NOT_RENDER_ID_PREFIX))
+                    .filter((m) => {
+                      // 隐藏前端注入的特殊指令消息 + 其简短回执，
+                      // 避免聊天界面里出现 __summarize_memory__ / __undo_memory__:...
+                      // 和孤零零的"已撤销。"这类机器对话噪音。
+                      const text = getContentString(m.content).trim();
+                      if (m.type === "human") {
+                        if (text === "__summarize_memory__") return false;
+                        if (text.startsWith("__undo_memory__:")) return false;
+                      }
+                      if (m.type === "ai" && (text === "已撤销。" || text === "已撤销.")) {
+                        return false;
+                      }
+                      return true;
+                    })
                     .map((message, index) =>
                       message.type === "human" ? (
                         <HumanMessage

@@ -1,8 +1,12 @@
-# 长期记忆设计（按账号隔离 + 人工审核）
+# 长期记忆设计（按账号隔离）
 
 **日期：** 2026-05-19
-**状态：** 设计阶段 —— 你审核通过后才进入实施计划
+**状态：** ✅ 已实现并合入 `main`（详见 `docs/superpowers/plans/2026-05-19-long-term-memory.md` 的实施记录）
 **参考：** [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) —— 冻结快照式纯文本记忆模式
+
+> **实现期的设计调整**（与原始设计的差异）：
+> - **手动总结按钮的 HITL 候选审核面板取消了**，改为"点一下 → AI 静默循环 `memory.add` → 回'已记住 N 条'"。Toast 撤销机制保留，给反悔的口子。
+> - **系统提示注入**从原计划的 `abefore_agent` 改成 `awrap_model_call`，记忆只塞进给 LLM 的 `system_message`，**不进 `state.messages`**。这样既不会前端误渲染、也不会每轮 append 一次累加。
 
 ---
 
@@ -10,8 +14,8 @@
 
 让每个登录账号有一份**独立、有边界、跨会话不丢**的记忆。每次新建对话时 AI 自动加载这份记忆；什么能进记忆，**两个入口都开**：
 
-- **AI 自主入库**：聊天过程中 AI 自己判断"这是值得长期记住的事"就静默存进去，下方冒一个 Toast 通知给你"撤销"按钮。
-- **手动总结按钮**：你点 💾，AI 把当前对话总结成 3-5 条候选，弹审核面板让你勾选/编辑/取消，确认才入库。
+- **AI 自主入库**：聊天过程中 AI 自己判断"这是值得长期记住的事"就静默存进去，前端冒一个 Toast 通知 + 5 秒"撤销"按钮。
+- **手动总结按钮**：点输入框旁边的 💾，AI 扫一遍当前对话循环调用 `memory.add` 把值得记的事都存进去，回一句"已记住 N 条"。每条同样会触发 Toast（带撤销）。
 
 做完之后的实际体验：
 
@@ -48,27 +52,28 @@
 [ 前端调 memory.remove ]
 
 
-路径 ②  手动总结按钮（批量 HITL）
+路径 ②  手动总结按钮（一体化 / 静默批量）
 ─────────────────────────────────────────
-[ 输入框旁 💾 按钮 ] ──summarize──▶ [ Supervisor 进入总结模式 ]
-                                            ↓
-                                    [ 读对话历史 + 已有记忆 ]
-                                            ↓
-[ 候选面板气泡 ] ◀──── interrupt ───  [ 输出 3-5 条候选 JSON ]
-[ ☑ 可编辑文本                ]
-[ ☐ 也可取消勾                ]
-[ [确认] [取消]               ] ──resume──▶ [ 循环 memory.add ]
+[ 输入框旁 💾 按钮 ]
+        ↓ submit 隐藏 human message "__summarize_memory__"
+[ Supervisor 识别触发词，进总结模式 ]
+        ↓ 扫一遍当前 thread 对话
+[ 循环 memory.add(...) N 条 ]  ──每条都触发 memory_saved 流式事件
+        ↓                       ↓ 每条单独冒 Toast（含撤销）
+[ 回复 "已记住 N 条。" ]
 
 
-路径 ③  每个新 thread 启动时（消费）
+路径 ③  每次 LLM 调用都临时拼记忆（消费）
 ─────────────────────────────────────────
-                  ┌────────────┐
-[ 新建 thread ]──▶│  prompt    │
-                  │  inject    │──▶ [ Supervisor 系统提示包含全部记忆 ]
-                  │  middleware│        ↓
-                  │  从 Store  │   [ 所有 SubAgent 继承到记忆块 ]
-                  │  读全部    │
-                  └────────────┘
+[ 任意一次 model call ]
+        ↓ awrap_model_call 钩子拦截
+[ 从 runtime.store 读当前 user 的两个桶 ]
+        ↓
+[ 拼到 ModelRequest.system_message ]
+        ↓
+[ 给 LLM 发请求 → 回应 → state.messages 不变 ]
+        ↓
+[ 前端永远看不到记忆块；冻结快照由钩子幂等保证 ]
 ```
 
 ## 存储模型
@@ -160,7 +165,7 @@ Hermes 的设计精髓：让 AI **自主决定什么时候存**，引导写在**
 | 触发 | 路径 | UI 反馈 |
 |---|---|---|
 | AI 聊天中自主判断"这事值得记" | 直接调 `memory.add` | 流式事件 → 前端 Toast `已记住：xxx [撤销]`（停留 5s） |
-| 用户点 💾 总结按钮 | 进总结模式 → JSON 候选 → `interrupt()` | 候选审核面板（详见后文 HITL 流程） |
+| 用户点 💾 总结按钮 | 隐藏 human message `__summarize_memory__` → Supervisor 循环 `memory.add` | 每条单独冒 Toast；AI 最后回 `已记住 N 条。` |
 | AI 主动调用整理（桶满了） | `memory.replace / remove` | 同 Toast，但内容是"已合并：xxx [撤销]" |
 
 ### Toast 撤销机制
@@ -176,15 +181,15 @@ Hermes 的设计精髓：让 AI **自主决定什么时候存**，引导写在**
 }
 ```
 
-前端监听这个事件，用现有的 `sonner` toast 组件渲染。Toast 上有一个"撤销"按钮，5 秒倒计时；点了就调一个轻量级 mutation：`memory.remove(target=同上, old_text=content)`。
+前端监听这个事件，用现有的 `sonner` toast 组件渲染。Toast 上有一个"撤销"按钮，5 秒倒计时；点了就发一条隐藏 human message `__undo_memory__:<target>:<key>`，Supervisor 识别后调 `memory_undo(target, key)` 精确删除（不走子串匹配）。
 
 5 秒过了或用户点别处，toast 自然消失，记忆就**正式落实**了。这个时间窗给用户"AI 存错了立刻反悔"的机会，不打断聊天主流程。
 
 ## 系统提示注入
 
-**每个新 thread 开始时**（= 每开一个新对话）：
+**每次 LLM 调用前**（= `awrap_model_call` 钩子）：
 
-1. 从 Store 读出 `(user_id, "memory")` 和 `(user_id, "user")` 的所有条目。
+1. 从 `runtime.store` 读当前 user 的 `(user_id, "memory")` 和 `(user_id, "user")` 两个命名空间的所有条目。
 2. 按 Hermes 风格渲染两个块：
 
 ```
@@ -196,46 +201,24 @@ USER PROFILE [42% — 578/1,375 chars]
 偏好简洁回答
 ```
 
-3. 两块都拼到 supervisor 的系统提示词最前面，**一次性注入**，对话开始。
+3. 把渲染结果**追加到 `ModelRequest.system_message.content`**（不写 state.messages）后再调 `handler(request)` 给 LLM。
 
-**冻结快照规则（性能关键）**：系统提示在 thread 开始时拍下来就**不变了**，哪怕 HITL 确认过程中 `memory.add` 写了新条目也不变。新条目会立刻写进 Postgres（持久化没问题），但要等**下一个 thread** 才会出现在系统提示里。这样保住 LLM 的 prefix 缓存，整个 thread 都吃缓存命中。
+**为什么用 `awrap_model_call` 不用 `before_agent`**（实现过程踩过的坑）：
+- 用 `before_agent` 返回 `{"messages": [SystemMessage(memory_block)]}` 会把记忆**写进 `state.messages` 的 add_messages reducer**，结果是：(a) 前端聊天界面会**渲染出**记忆块、(b) 每一轮 user 消息都会触发新的 agent run，每次都 append 一遍，几轮之后系统提示里堆好几份重复的记忆。
+- `awrap_model_call` 只修改本次请求的 `system_message`，**不进 state**。前端永远看不见、不会累加。每次 LLM 调用都临时拼一次（开销可忽略，Store 读取是命名空间内的 SELECT）。
 
-**DeepAgents 怎么接这个钩子**：
-- 用一个 **prompt-builder 中间件**（或者别的钩子），每个 thread 启动时跑一次：读 Store → 渲染两个块 → 拼到 `supervisor.md` 内容前面。
-- SubAgent 通过自己的系统提示继承到记忆块（不需要每个 SubAgent 单独再读一次）。
+**SubAgent 怎么继承**：DeepAgents 把 supervisor 调度出去的 SubAgent 也会经过同样的 middleware（因为 `create_deep_agent(middleware=[...])` 是图级注册），所以每个 SubAgent 的 LLM 调用同样会看到记忆块。
 
-## HITL 总结流程（端到端）
+## 手动总结流程（端到端，**静默版**）
 
-1. **触发** —— 用户点输入框旁边的 💾 按钮。前端发一个特殊控制消息：
-   ```json
-   { "command": "summarize_memory", "thread_id": "<当前 thread>" }
-   ```
-2. **后端总结** —— Supervisor 收到这个控制消息，切到**总结模式**：
-   - 读当前 thread 的对话历史
-   - 读已存在的记忆（避免重复提候选）
-   - 输出结构化 JSON：
-     ```json
-     {
-       "candidates": [
-         { "target": "user",   "content": "..." },
-         { "target": "memory", "content": "..." }
-       ]
-     }
-     ```
-3. **中断（Interrupt）** —— Supervisor 调 LangGraph 的 `interrupt({ "kind": "memory_candidates", "candidates": [...] })`。图执行暂停，控制权回前端。
-4. **前端面板** —— 聊天 UI 渲染一个中断气泡：
-   ```
-   ┌─ MEMORY CANDIDATES（记忆候选） ──────────┐
-   │ ☑ [USER]   用户名小明，HR 部门              │  ← 文本可编辑
-   │ ☑ [MEMORY] 偏好简洁回答                     │  ← 文本可编辑
-   │ ☐ [MEMORY] 提到过项目 X                     │  ← 没勾，跳过
-   │                                            │
-   │           [ 确认 ]  [ 取消 ]                │
-   └────────────────────────────────────────────┘
-   ```
-   现有 `agent-chat-ui` 自带 `agent-inbox-interrupt` 渲染机制 —— 不用从零写，加一个新的 interrupt `kind` 就行。
-5. **恢复（Resume）** —— 用户点"确认"。前端发 `Command(resume={accepted: [...编辑后的内容...]})`。Supervisor 循环逐条调 `memory(action="add", ...)`。点"取消" → 发 `accepted: []`，啥也不存。
-6. **回执** —— Supervisor 发一条简短消息："已记住 3 条"。对话继续正常进行。
+1. **触发** —— 用户点输入框旁边的 💾 按钮（`MemorySummarizeButton`）。前端调 `stream.submit({messages: [{type:"human", content:"__summarize_memory__"}]})`，把这条隐藏 human message 加进 thread。
+2. **Supervisor 识别** —— `supervisor.md` 里的 `<memory>` 块明确写了这种格式触发总结模式：
+   - 扫一遍当前 thread 的对话历史
+   - 按 `memory` 工具的 "WHEN TO SAVE" 准则识别值得长期记住的事实，**最多 5 条**
+   - 跳过已经在系统提示的 USER PROFILE / MEMORY 块里出现过的（避免重复）
+3. **循环写入** —— 对每条事实调 `memory(action="add", target="user"|"memory", content="...")`。每次成功都触发 `memory_saved` 流式事件 → 前端冒 Toast。
+4. **结束回复** —— Supervisor 发一句 `已记住 N 条。`（或 `没有需要记忆的新内容。`）。无 HITL 审核面板、无 interrupt、无 JSON 候选解析。
+5. **反悔通道** —— 用户对任何一条不满意，在 Toast 的 5 秒窗口内点撤销即可。
 
 ## 安全：内容扫描
 
@@ -247,38 +230,52 @@ USER PROFILE [42% — 578/1,375 chars]
 - **后门留存**：`authorized_keys`、`~/.ssh` 之类的引用。
 - **不可见 unicode**：零宽字符、RTL/LTR 翻转字符。
 
-被拦下的内容工具返回失败 + 拒绝原因；AI 把原因告诉用户。HITL 阶段用户能编辑后重试。
+被拦下的内容工具返回失败 + 拒绝原因；AI 把原因告诉用户，并按需重试（去掉敏感片段）。
 
-## 代码文件布局
+## 代码文件布局（实际实现）
 
 ```
 backend/src/
 ├── memory/
 │   ├── __init__.py
 │   ├── store.py          # 对 AsyncPostgresStore 的薄封装：按命名空间读写
-│   ├── tool.py           # memory 工具本体（add/replace/remove + 子串匹配）
+│   ├── tool.py           # memory 工具 + memory_undo 工具（key 精确删）
 │   ├── security.py       # 抄 Hermes 的 _scan_memory_content
-│   ├── prompt_inject.py  # 根据 user_id 渲染两个记忆块
-│   └── summarize.py      # 总结模式的提示词 + JSON 候选解析
-└── agent.py              # 在 create_deep_agent 里接入工具 + prompt-inject 钩子
+│   └── prompt_inject.py  # MemoryInjectMiddleware（awrap_model_call 钩子）+ render_memory_blocks
+└── agent.py              # 在 create_deep_agent 里接入工具 + middleware
+
+backend/tests/
+├── test_memory_store.py        # 4 个隔离测试
+├── test_memory_security.py     # 6 个威胁模式测试
+├── test_memory_tool.py         # 4 个工具行为测试
+├── test_memory_inject.py       # 5 个渲染 / 隔离测试
+└── test_memory_integration.py  # 3 个跨用户隔离 / 并发测试
 
 frontend/agent-chat-ui/src/
 ├── components/thread/
-│   ├── memory-summarize-button.tsx     # 输入框旁边的 💾 按钮
-│   ├── memory-candidates-interrupt.tsx # HITL 审核面板（批量总结路径）
-│   └── memory-toast.tsx                # AI 自主入库时的 Toast + 撤销（基于 sonner）
-└── lib/
-    └── memory.ts                       # 类型定义 + 扩展 agent-inbox-interrupt 联合类型
+│   ├── memory-summarize-button.tsx  # 输入框旁的 💾 按钮（发 __summarize_memory__）
+│   └── memory-toast.tsx              # AI 自主入库时的 Toast + 撤销（sonner）
+├── providers/Stream.tsx              # onCustomEvent 监听 memory_saved + 撤销 submitRef
+└── lib/memory.ts                     # MemorySavedEvent 类型 + isMemorySavedEvent 类型守卫
+
+prompts/
+└── supervisor.md                     # <memory> 块定义工具用法 + 两条隐藏指令识别
+                                      #   __undo_memory__:<target>:<key>
+                                      #   __summarize_memory__
 ```
 
-## 待解决的问题 / 风险点
+> **HITL 候选审核面板 (`memory-candidates-interrupt.tsx`) 和总结 JSON 解析器 (`summarize.py`) 没建** —— 设计调整为静默总结后这两个文件用不上了。
 
-1. **DeepAgents 的 prompt 注入钩子** —— `create_deep_agent` 接受 `system_prompt` 是个静态字符串。我们需要 (a) 跑在 graph 前的中间件动态改提示，或者 (b) 在 auth / init 钩子里算好再传进去。**进实施计划前先做个 small spike 验证一下哪条路通**。
-2. **`init_db.py` 第一次部署时跑** —— 现在是手动一次性脚本。可能要做成容器启动时自动跑一次（幂等的），免得部署者忘了。这块跟记忆功能本身无关，但提一下避免踩坑。
-3. **总结质量靠提示词** —— 会单写一份 `prompts/summarize_memory.md`，明确要求：只抽取持久性事实、跳过临时细节、最多 5 个候选。
-4. **Thread 开始时的 token 预算** —— 2,200 + 1,375 = 3,575 字符最多加到系统提示里。够用而且不夸张，但 prompt 缓存成本评估时记得这部分。
-5. **Toast 撤销的传输机制** —— "撤销"按钮需要从前端反向触发后端的 `memory.remove`。AI 工具本身不暴露成公共 API，所以需要：(a) 加一个专门的 `memory_undo` 工具 + 前端控制消息，或者 (b) 直接给 LangGraph 加一个轻量 HTTP endpoint。实施计划阶段拍板。
-6. **AI 一次性存太多导致 Toast 堆叠** —— 如果 AI 在一条用户消息里抽到 5+ 个事实，会同时冒 5 个 Toast。`sonner` 默认堆叠 OK，但还是考虑设个上限（比如 3 个，超过的合并成"已记住 5 条 [查看]"）。
+## 实现过程中遇到 / 解决的问题（保留作为后人参考）
+
+1. **DeepAgents 的 prompt 注入钩子** ✅ 解决 —— `create_deep_agent` 支持 `middleware=` 参数。继承 `langchain.agents.middleware.types.AgentMiddleware` 实现 `awrap_model_call`，参数 `request: ModelRequest` 有 `system_message` 字段可改。
+2. **`init_db.py` 第一次部署** ✅ 解决 —— Dockerfile.langgraph 的 `CMD` 里已经会自动跑一次。
+3. **总结质量靠提示词** ✅ 解决 —— 没单独写文件，直接把规则塞进 `supervisor.md` 的 `<memory>` 块 `__summarize_memory__` 段（最多 5 条 / ≤200 字符 / 跳过已有 / 跳过临时任务）。
+4. **Thread 开始时的 token 预算** ✅ 已知 —— 上限是 2,200 + 1,375 = 3,575 字符，每次 LLM 调用都会拼一次。Prompt 缓存方面 DeepSeek 自动处理。
+5. **Toast 撤销的传输机制** ✅ 解决 —— 选 (a) 方案：新增 `memory_undo` 工具按 `key` 精确删，前端发隐藏 human message `__undo_memory__:<target>:<key>` 触发，supervisor.md 识别后调用。
+6. **AI 一次性存太多导致 Toast 堆叠** ⚠️ 未来再说 —— 现在没设上限，`sonner` 自动堆叠。实测 5 条以内体验 OK。如果用户反馈 toast 太多，再考虑合并显示。
+7. **`runtime.context` 不带 user_id** ✅ 解决 —— LangGraph Platform 把 `auth.py` 返回的 `{"identity": user_id, ...}` 包成 ProxyUser 后挂在 `runtime.server_info.user.identity`（不是 `runtime.context`）。
+8. **`docker exec ... pytest` 看不到代码改动** ✅ 解决 —— `docker-compose.yml` 给 langgraph 容器加了 `../backend/src:/app/backend/src` 和 `../backend/tests:/app/backend/tests` 的 bind mount，host 改文件容器立即生效。
 
 ## 验收标准
 
