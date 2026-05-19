@@ -9,9 +9,9 @@
       - backend/pyproject.toml changed    → REBUILD langgraph (pip install)
       - infra/Dockerfile.langgraph changed → REBUILD langgraph
       - backend/src/** changed            → langgraph dev auto-reloads (bind-mount)
-      - prompts/** changed                → langgraph dev auto-reloads (bind-mount)
-      - skills/** changed                 → langgraph dev auto-reloads (bind-mount)
-      - frontend/agent-chat-ui/out/**     → nginx serves directly (bind-mount)
+      - prompts/** changed                → RESTART langgraph (loaded at startup)
+      - skills/** changed                 → RESTART langgraph (loaded at startup)
+      - frontend/agent-chat-ui/out/**     → RESTART frontend (nginx refresh)
       - infra/docker-compose.yml changed  → docker compose up -d (reconcile)
       - infra/kong.yml changed            → RESTART kong
       - infra/nginx.conf changed          → RESTART frontend (nginx)
@@ -177,12 +177,13 @@ try {
             "backend/pyproject.toml"      { $rebuildLanggraph = $true }
             "infra/Dockerfile.langgraph"  { $rebuildLanggraph = $true }
 
-            # ── Langgraph: bind-mounted, auto-reloads ──
+            # ── Langgraph: bind-mounted .py files, watchfiles auto-reloads ──
             "backend/src/*"    { $autoReload = $true }
-            "prompts/*"        { $autoReload = $true }
-            "skills/*"         { $autoReload = $true }
 
-            # ── Langgraph: scripts (not bind-mounted) ──
+            # ── Langgraph: prompts/skills are read at startup, not watched ──
+            # .md files are NOT monitored by watchfiles, need restart
+            "prompts/*"         { $restartLanggraph = $true }
+            "skills/*"          { $restartLanggraph = $true }
             "backend/scripts/*" { $restartLanggraph = $true }
 
             # ── Frontend: static files are bind-mounted ──
