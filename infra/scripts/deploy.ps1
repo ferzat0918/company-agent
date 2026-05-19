@@ -22,9 +22,71 @@
     Usage:  .\deploy.ps1 [-ProjectRoot "D:\agent-service-git\company-agent"]
 #>
 
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  ██  SAFETY RULES — DO NOT REMOVE OR MODIFY THIS BLOCK  ██      ║
+# ║                                                                   ║
+# ║  This script MUST NEVER:                                          ║
+# ║    1. Delete any Docker volume    (docker volume rm)              ║
+# ║    2. Use "docker compose down"   (destroys containers)           ║
+# ║    3. Use "docker system prune"   (deletes unused data)           ║
+# ║    4. Touch any database          (psql, DROP, DELETE, TRUNCATE)  ║
+# ║    5. Remove langgraph-data       (contains thread index)         ║
+# ║    6. Remove postgres-data        (contains all chat history)     ║
+# ║    7. Remove storage-data         (contains uploaded files)       ║
+# ║                                                                   ║
+# ║  ALLOWED operations (safe):                                       ║
+# ║    ✓ git fetch / git pull                                         ║
+# ║    ✓ docker compose build         (rebuilds image only)           ║
+# ║    ✓ docker compose up -d         (starts/updates containers)     ║
+# ║    ✓ docker compose restart       (restarts running container)    ║
+# ║    ✓ docker compose ps            (read-only status check)        ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+
 param(
     [string]$ProjectRoot = ""
 )
+
+# ── Safety self-check ────────────────────────────────────────────
+# Scans this script's own content for forbidden patterns.
+# If someone accidentally adds a dangerous command, the script
+# will refuse to run.
+function Assert-ScriptSafety {
+    $scriptContent = Get-Content $PSCommandPath -Raw
+    $forbidden = @(
+        "volume rm",
+        "volume remove",
+        "volume prune",
+        "compose down",
+        "system prune",
+        "DROP TABLE",
+        "DROP DATABASE",
+        "TRUNCATE",
+        "DELETE FROM",
+        "rm -rf",
+        "Remove-Item.*postgres",
+        "Remove-Item.*langgraph",
+        "Remove-Item.*storage"
+    )
+    foreach ($pattern in $forbidden) {
+        # Skip the safety check block itself (these patterns appear as strings in the check list)
+        $matches_found = [regex]::Matches($scriptContent, [regex]::Escape($pattern))
+        # Each pattern appears exactly once in the $forbidden array definition above.
+        # If it appears MORE than once, it means someone added it as actual code.
+        if ($matches_found.Count -gt 1) {
+            Write-Host ""
+            Write-Host "  ╔═══════════════════════════════════════════════╗" -ForegroundColor Red
+            Write-Host "  ║  SAFETY VIOLATION DETECTED — ABORTING         ║" -ForegroundColor Red
+            Write-Host "  ║  Forbidden pattern found: $pattern" -ForegroundColor Red
+            Write-Host "  ║  This script must NEVER touch data/volumes.   ║" -ForegroundColor Red
+            Write-Host "  ╚═══════════════════════════════════════════════╝" -ForegroundColor Red
+            Write-Host ""
+            Read-Host "Press Enter to exit"
+            exit 99
+        }
+    }
+}
+
+Assert-ScriptSafety
 
 # ── Helpers ──────────────────────────────────────────────────────
 function Write-Step  { param([string]$msg) Write-Host "`n==> $msg" -ForegroundColor Cyan }
