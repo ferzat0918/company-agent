@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, AlertCircle, MessageSquarePlus, ListChecks } from "lucide-react";
+import { ArrowLeft, Check, AlertCircle, MessageSquarePlus, ListChecks, Shield } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -334,6 +334,32 @@ function FeedbackCard({ onOpenModal }: { onOpenModal: () => void }) {
   );
 }
 
+/* ── Admin entry (only visible to whitelisted emails) ────────── */
+
+const ADMIN_EMAILS = ["freddyferzat@gmail.com"];
+
+function AdminCard() {
+  const { user } = useAuth();
+  if (!user?.email || !ADMIN_EMAILS.includes(user.email)) return null;
+
+  return (
+    <section>
+      <SectionLabel index="04" title="ADMIN" />
+      <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-6">
+        <p className="mb-6 font-body text-sm leading-relaxed text-[var(--umx-silver)]">
+          管理后台：查看所有用户反馈、修改处理状态、添加备注。
+        </p>
+        <Link href="/admin">
+          <Button variant="acid" size="lg" className="w-full gap-2">
+            <Shield className="size-4" />
+            ADMIN DASHBOARD
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function ProfileContent() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -378,6 +404,7 @@ function ProfileContent() {
         <AccountInfoCard profile={profile} />
         <PasswordCard />
         <FeedbackCard onOpenModal={() => setFeedbackOpen(true)} />
+        <AdminCard />
       </div>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </main>
