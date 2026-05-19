@@ -1,78 +1,77 @@
-# Long-term memory (per-user, HITL-curated)
+# 长期记忆设计（按账号隔离 + 人工审核）
 
-**Date:** 2026-05-19
-**Status:** Design — awaiting approval before implementation plan
-**Inspired by:** [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) — frozen-snapshot text memory pattern
+**日期：** 2026-05-19
+**状态：** 设计阶段 —— 你审核通过后才进入实施计划
+**参考：** [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) —— 冻结快照式纯文本记忆模式
 
 ---
 
-## Goal
+## 目标
 
-Give each logged-in user a **bounded, persistent memory** that survives across conversations. The agent recalls memory automatically at the start of every new thread; the user controls what enters memory through a **manual "summarize" button** plus **HITL approval**.
+让每个登录账号有一份**独立、有边界、跨会话不丢**的记忆。每次新建对话时 AI 自动加载这份记忆；什么能进记忆**由用户控制**：点"总结"按钮 → AI 提候选 → 你勾选/修改 → 入库。
 
-After this ships:
+做完之后的实际体验：
 
-- Account A says "我叫小明，HR 部门，喜欢简洁回答" in thread T1.
-- Days later in thread T2, account A asks "你还记得我是哪个部门的吗" — agent answers correctly without account A re-telling it.
-- Account B sees zero of account A's memory.
+- 账号 A 在 thread T1 说："我叫小明，HR 部门，喜欢简洁回答"。
+- 几天后账号 A 开 thread T2 问："你还记得我是哪个部门的吗"，AI 答得上来，不用再说一遍。
+- 账号 B 登录 —— 完全看不到账号 A 的任何记忆。
 
-## Non-goals (MVP)
+## 非目标（MVP **不做**的事）
 
-These are deliberately deferred. Each adds a layer that we'll only build when a concrete need shows up.
+下面这些是故意推迟的。每一项都会多一层复杂度，等有具体需求再做。
 
-- Semantic search / embeddings — char-limited plain text fits in the system prompt without retrieval.
-- Cross-session FTS search of past conversations (Hermes does this; out of scope here).
-- Autonomous memory writes by the agent (Hermes does this; we want manual + HITL for MVP).
-- Per-bucket UI for browsing/editing memory outside the summarize flow.
-- Memory expiration / aging — entries stay until the agent consolidates them under char-limit pressure.
+- **语义搜索 / embedding** —— 字符上限够小，纯文本直接塞进系统提示就行，不需要检索。
+- **跨会话全文搜索过往对话**（Hermes 有；本期不做）。
+- **AI 自主决定要不要记**（Hermes 是全自动的；我们要的是手动 + HITL）。
+- **独立的记忆管理 UI**（浏览 / 编辑现有记忆）—— 暂时只通过"总结"按钮入口。
+- **记忆过期 / 老化** —— 条目一直留着，直到 AI 因字符超限自己合并/丢弃。
 
-## Architecture
+## 整体架构
 
 ```
-┌─────────────────────┐                ┌──────────────────────┐
-│ Frontend (Next.js)  │                │  LangGraph backend   │
-│                     │                │                      │
-│  [ chat input ] [💾]│ ──summarize──▶ │  Supervisor          │
-│                     │                │   ↓ runs summary     │
-│  candidate panel    │ ◀──interrupt── │   interrupt(cands)   │
-│  ☑ edit  ☐  ☑  …    │                │                      │
-│  [confirm] [cancel] │ ──resume──────▶│  loop: memory.add()  │
-│                     │                │   ↓                  │
-└─────────────────────┘                │  Postgres Store      │
-                                       │  ns=(user_id,bucket) │
-                                       └──────────────────────┘
+┌──────────────────────┐                ┌──────────────────────┐
+│ 前端 (Next.js)        │                │  LangGraph 后端       │
+│                      │                │                      │
+│  [ 输入框 ] [💾按钮 ]  │ ──总结指令───▶  │  Supervisor           │
+│                      │                │   ↓ 进入总结模式        │
+│  候选审核面板          │ ◀── interrupt ─│   interrupt(候选列表)   │
+│  ☑ 可编辑文本  ☐  ☑   │                │                      │
+│  [确认] [取消]        │ ─── resume ───▶│  循环: memory.add()    │
+│                      │                │   ↓                  │
+└──────────────────────┘                │  Postgres Store      │
+                                        │  ns=(user_id, 桶名)   │
+                                        └──────────────────────┘
                                                 ▲
-                                                │ load on every
-                                                │ new thread →
-                                                │ inject system
-                                                │ prompt
+                                                │ 每个新 thread
+                                                │ 启动时加载，
+                                                │ 注入系统提示
                                                 ▼
-                                       ┌──────────────────────┐
-                                       │ Supervisor + all     │
-                                       │ SubAgents see memory │
-                                       │ at session start     │
-                                       └──────────────────────┘
+                                        ┌──────────────────────┐
+                                        │ Supervisor + 所有     │
+                                        │ SubAgent 在会话开始    │
+                                        │ 都能看到记忆          │
+                                        └──────────────────────┘
 ```
 
-## Storage model
+## 存储模型
 
-**Backend:** existing `AsyncPostgresStore` (already wired in `docker-compose.yml` via `LANGGRAPH_STORE`). Tables auto-created on first use; `init_db.py` covers cold-start case.
+**后端**：复用现有的 `AsyncPostgresStore`（`docker-compose.yml` 里的 `LANGGRAPH_STORE` 已经接好）。表首次使用时自动建；`init_db.py` 兜底冷启动。
 
-**Namespace per user:**
-
-```
-(user_id, "memory")   — agent's notes: env facts, project conventions, history
-(user_id, "user")     — user profile: identity, preferences, communication style
-```
-
-`user_id` comes from `ctx.user.identity` set in `backend/src/auth.py` (Supabase JWT `sub` claim). Tools refuse to read/write any namespace except the current request's user. Isolation is enforced **inside the tool**, not at the agent layer — the agent cannot bypass it by passing a fake user_id.
-
-**Entry format:** plain text, multiline OK, delimited by `\n§\n` on disk concatenation, generated UUID as the Store key.
+**每用户两个命名空间：**
 
 ```
+(user_id, "memory")   —— AI 笔记：环境事实、项目约定、历史发生过的事
+(user_id, "user")     —— 用户画像：身份、偏好、沟通风格
+```
+
+`user_id` 取自 `backend/src/auth.py` 里设置的 `ctx.user.identity`（Supabase JWT 的 `sub`）。**工具内部强制锁定当前用户的命名空间**，AI 不能通过传假 user_id 跨账号读写 —— 隔离是在工具层做的，不是在 AI 层。
+
+**条目格式**：纯文本，多行 OK，磁盘里用 `\n§\n` 分隔。Store 的 key 用自动生成的 UUID。
+
+```json
 {
   "namespace": ["user-uuid-here", "user"],
-  "key": "01HA…",
+  "key": "01HA...",
   "value": {
     "content": "用户名小明，HR 部门，偏好简洁回答",
     "created_at": "2026-05-19T08:42:00Z"
@@ -80,37 +79,37 @@ These are deliberately deferred. Each adds a layer that we'll only build when a 
 }
 ```
 
-**Char limits (mirror Hermes, battle-tested):**
+**字符上限（直接抄 Hermes，实战验证过的）：**
 
-| Bucket | Limit (chars) | Approx tokens |
+| 桶名 | 字符上限 | 大约 token |
 |---|---|---|
 | `memory` | 2,200 | ~800 |
 | `user` | 1,375 | ~500 |
 
-When a bucket is full, the agent's `memory.add` call returns an error message: "Bucket full — consolidate or remove entries first." The agent then does `replace`/`remove` to free space before retrying.
+**桶满了怎么办**：AI 调 `memory.add` 时工具返回错误 "桶已满，先合并或删除旧条目"。AI 收到后自己用 `replace`/`remove` 腾空间，再重试 add。
 
-## Memory tool
+## 记忆工具
 
-Single tool `memory` with `action` parameter — same shape Hermes uses:
+一个 `memory` 工具，三个动作 —— 跟 Hermes 一模一样：
 
 ```python
 memory(action="add",     target="user"|"memory", content="...")
-memory(action="replace", target="user"|"memory", old_text="<substring>", content="...")
-memory(action="remove",  target="user"|"memory", old_text="<substring>")
+memory(action="replace", target="user"|"memory", old_text="<子串>", content="...")
+memory(action="remove",  target="user"|"memory", old_text="<子串>")
 ```
 
-- `old_text` is a **short unique substring** — no IDs, no full-text matching. If the substring matches 0 or >1 entries, the tool returns an error asking for a more specific match. This is much cheaper on tokens than passing full text.
-- Tool only sees the current user's namespace; cannot read/write across users.
-- Before any `add`/`replace`, content passes through the **security scanner** (see below). Blocked content fails the call with the reason.
+- `old_text` 是**一段唯一短子串**就行 —— 不用 ID、不用全文匹配。如果子串匹配到 0 条或多条，工具报错让 AI 给更具体的子串。这样比传全文省 token。
+- 工具只能看见当前用户的命名空间，做不到跨用户读写。
+- `add` / `replace` 写入前必须过**安全扫描**（下面详述）。被拦下来的内容工具调用直接失败并返回拒绝原因。
 
-The tool exists for the **HITL confirm phase** and any consolidation the agent does. The user **never types `/memory` themselves** — it's an internal tool.
+**用户永远不直接调这个工具** —— 它是内部工具，只在 HITL 确认阶段和 AI 自己整理桶时用。
 
-## System prompt injection
+## 系统提示注入
 
-At every **thread start** (= every new conversation):
+**每个新 thread 开始时**（= 每开一个新对话）：
 
-1. Read all entries for `(user_id, "memory")` and `(user_id, "user")` from the Store.
-2. Render two blocks in Hermes' format:
+1. 从 Store 读出 `(user_id, "memory")` 和 `(user_id, "user")` 的所有条目。
+2. 按 Hermes 风格渲染两个块：
 
 ```
 ══════════════════════════════════════════════
@@ -121,24 +120,24 @@ USER PROFILE [42% — 578/1,375 chars]
 偏好简洁回答
 ```
 
-3. Inject both blocks into the supervisor's system prompt **once**, before the conversation starts.
+3. 两块都拼到 supervisor 的系统提示词最前面，**一次性注入**，对话开始。
 
-**Frozen-snapshot rule (critical for performance):** the system prompt is captured at thread start and **does not change mid-thread** even if `memory.add` writes new entries during HITL confirm. New entries land in Postgres immediately (durable), but appear in the system prompt only on the **next** thread. This preserves the LLM provider's prefix cache across the whole thread.
+**冻结快照规则（性能关键）**：系统提示在 thread 开始时拍下来就**不变了**，哪怕 HITL 确认过程中 `memory.add` 写了新条目也不变。新条目会立刻写进 Postgres（持久化没问题），但要等**下一个 thread** 才会出现在系统提示里。这样保住 LLM 的 prefix 缓存，整个 thread 都吃缓存命中。
 
-To make this work in DeepAgents:
-- Use a **prompt builder hook** (or middleware) that runs once per thread, reads the Store, formats the blocks, and prepends them to the existing `supervisor.md` content.
-- SubAgents inherit the supervisor's memory blocks via their own system prompts (no separate per-subagent fetch).
+**DeepAgents 怎么接这个钩子**：
+- 用一个 **prompt-builder 中间件**（或者别的钩子），每个 thread 启动时跑一次：读 Store → 渲染两个块 → 拼到 `supervisor.md` 内容前面。
+- SubAgent 通过自己的系统提示继承到记忆块（不需要每个 SubAgent 单独再读一次）。
 
-## HITL summarize flow
+## HITL 总结流程（端到端）
 
-1. **Trigger** — user clicks 💾 button next to chat input (frontend). The frontend sends a special control message:
+1. **触发** —— 用户点输入框旁边的 💾 按钮。前端发一个特殊控制消息：
    ```json
-   { "command": "summarize_memory", "thread_id": "<current>" }
+   { "command": "summarize_memory", "thread_id": "<当前 thread>" }
    ```
-2. **Backend summary** — supervisor receives the control message, switches to a dedicated **summary mode**:
-   - Reads the current thread's messages
-   - Reads existing memory (so it doesn't propose duplicates)
-   - Outputs structured JSON:
+2. **后端总结** —— Supervisor 收到这个控制消息，切到**总结模式**：
+   - 读当前 thread 的对话历史
+   - 读已存在的记忆（避免重复提候选）
+   - 输出结构化 JSON：
      ```json
      {
        "candidates": [
@@ -147,64 +146,64 @@ To make this work in DeepAgents:
        ]
      }
      ```
-3. **Interrupt** — supervisor calls LangGraph's `interrupt({ "kind": "memory_candidates", "candidates": [...] })`. Execution pauses, control returns to frontend.
-4. **Frontend panel** — chat UI renders an interrupt bubble:
+3. **中断（Interrupt）** —— Supervisor 调 LangGraph 的 `interrupt({ "kind": "memory_candidates", "candidates": [...] })`。图执行暂停，控制权回前端。
+4. **前端面板** —— 聊天 UI 渲染一个中断气泡：
    ```
-   ┌─ MEMORY CANDIDATES ─────────────────────┐
-   │ ☑ [USER]   用户名小明，HR 部门             │  ← editable text
-   │ ☑ [MEMORY] 偏好简洁回答                    │  ← editable text
-   │ ☐ [MEMORY] 提到过项目 X                    │  ← unchecked, will skip
+   ┌─ MEMORY CANDIDATES（记忆候选） ──────────┐
+   │ ☑ [USER]   用户名小明，HR 部门              │  ← 文本可编辑
+   │ ☑ [MEMORY] 偏好简洁回答                     │  ← 文本可编辑
+   │ ☐ [MEMORY] 提到过项目 X                     │  ← 没勾，跳过
    │                                            │
-   │           [ CONFIRM ]  [ CANCEL ]          │
+   │           [ 确认 ]  [ 取消 ]                │
    └────────────────────────────────────────────┘
    ```
-   Existing `agent-chat-ui` `agent-inbox-interrupt` infrastructure renders this — no new plumbing needed, just a new interrupt `kind`.
-5. **Resume** — user clicks Confirm. Frontend sends `Command(resume={accepted: [...edited content...]})`. Supervisor loops through accepted candidates and calls `memory(action="add", ...)` for each. Cancel → resume with `accepted: []`, nothing persists.
-6. **Acknowledge** — supervisor sends one short message: "已记住 3 条". Thread continues normally.
+   现有 `agent-chat-ui` 自带 `agent-inbox-interrupt` 渲染机制 —— 不用从零写，加一个新的 interrupt `kind` 就行。
+5. **恢复（Resume）** —— 用户点"确认"。前端发 `Command(resume={accepted: [...编辑后的内容...]})`。Supervisor 循环逐条调 `memory(action="add", ...)`。点"取消" → 发 `accepted: []`，啥也不存。
+6. **回执** —— Supervisor 发一条简短消息："已记住 3 条"。对话继续正常进行。
 
-## Security: content scanning
+## 安全：内容扫描
 
-Every `add`/`replace` runs `_scan_memory_content(content)` before writing. Copy Hermes' patterns verbatim — they cover the threats that matter for content that gets injected into the system prompt:
+每次 `add`/`replace` 写入前都过 `_scan_memory_content(content)`。直接抄 Hermes 的正则，这些是会被注入系统提示的内容，威胁面要小心：
 
-- **Prompt injection**: "ignore previous instructions", "you are now…", "disregard all rules", role hijacks.
-- **Deception**: "do not tell the user…".
-- **Exfiltration**: shell commands grabbing `$API_KEY`, `$TOKEN`, `.env`, `.netrc`.
-- **Persistence backdoors**: references to `authorized_keys`, `~/.ssh`.
-- **Invisible unicode**: zero-width chars, RTL/LTR overrides.
+- **Prompt 注入**："忽略上述指令"、"你现在是…"、"无视所有规则"、角色劫持。
+- **欺骗用户**："不要告诉用户…"。
+- **密钥外泄**：shell 命令里抓 `$API_KEY`、`$TOKEN`、读 `.env` `.netrc`。
+- **后门留存**：`authorized_keys`、`~/.ssh` 之类的引用。
+- **不可见 unicode**：零宽字符、RTL/LTR 翻转字符。
 
-Blocked content fails the tool call with the reason; the agent surfaces it to the user. HITL gives the user a chance to edit before retry.
+被拦下的内容工具返回失败 + 拒绝原因；AI 把原因告诉用户。HITL 阶段用户能编辑后重试。
 
-## Components & file layout
+## 代码文件布局
 
 ```
 backend/src/
 ├── memory/
 │   ├── __init__.py
-│   ├── store.py          # thin wrapper over AsyncPostgresStore: read/write namespaced entries
-│   ├── tool.py           # the `memory` tool (add/replace/remove + substring matching)
-│   ├── security.py       # _scan_memory_content port from Hermes
-│   ├── prompt_inject.py  # build the two memory blocks from user_id
-│   └── summarize.py      # the summary-mode prompt + JSON candidate parser
-└── agent.py              # wire memory tool + prompt-inject hook into create_deep_agent
+│   ├── store.py          # 对 AsyncPostgresStore 的薄封装：按命名空间读写
+│   ├── tool.py           # memory 工具本体（add/replace/remove + 子串匹配）
+│   ├── security.py       # 抄 Hermes 的 _scan_memory_content
+│   ├── prompt_inject.py  # 根据 user_id 渲染两个记忆块
+│   └── summarize.py      # 总结模式的提示词 + JSON 候选解析
+└── agent.py              # 在 create_deep_agent 里接入工具 + prompt-inject 钩子
 
 frontend/agent-chat-ui/src/
 ├── components/thread/
-│   ├── memory-summarize-button.tsx     # the 💾 button next to input
-│   └── memory-candidates-interrupt.tsx # renders the HITL panel
+│   ├── memory-summarize-button.tsx     # 输入框旁边的 💾 按钮
+│   └── memory-candidates-interrupt.tsx # HITL 审核面板
 └── lib/
-    └── memory.ts                       # types + helpers (extend agent-inbox-interrupt union)
+    └── memory.ts                       # 类型定义 + 扩展 agent-inbox-interrupt 联合类型
 ```
 
-## Open questions / risks
+## 待解决的问题 / 风险点
 
-1. **DeepAgents prompt-injection hook** — `create_deep_agent` accepts `system_prompt` as a static string. We need either (a) a pre-graph middleware that mutates the prompt per-thread, or (b) compute the augmented prompt inside an auth/init hook. To confirm with a small spike before the plan is final.
-2. **`init_db.py` on first deploy** — currently a manual one-shot. We may want to run it on container start (idempotent) so deployers don't forget. Out of scope for the memory feature itself but worth flagging.
-3. **Summary quality** — depends on the supervisor prompt. We'll add a `prompts/summarize_memory.md` with explicit instructions: extract durable facts only, skip ephemeral details, max 5 candidates.
-4. **Token budget at thread start** — 2,200 + 1,375 = 3,575 chars max added to system prompt. Acceptable; just worth being aware of when prompt-caching costs are reviewed.
+1. **DeepAgents 的 prompt 注入钩子** —— `create_deep_agent` 接受 `system_prompt` 是个静态字符串。我们需要 (a) 跑在 graph 前的中间件动态改提示，或者 (b) 在 auth / init 钩子里算好再传进去。**进实施计划前先做个 small spike 验证一下哪条路通**。
+2. **`init_db.py` 第一次部署时跑** —— 现在是手动一次性脚本。可能要做成容器启动时自动跑一次（幂等的），免得部署者忘了。这块跟记忆功能本身无关，但提一下避免踩坑。
+3. **总结质量靠提示词** —— 会单写一份 `prompts/summarize_memory.md`，明确要求：只抽取持久性事实、跳过临时细节、最多 5 个候选。
+4. **Thread 开始时的 token 预算** —— 2,200 + 1,375 = 3,575 字符最多加到系统提示里。够用而且不夸张，但 prompt 缓存成本评估时记得这部分。
 
-## What success looks like
+## 验收标准
 
-- Per-user isolation verified by integration test: account A's writes never appear in account B's namespace queries.
-- HITL panel: user can uncheck, edit text, confirm; only the checked + edited entries hit the Store.
-- New thread: opens, memory blocks render in system prompt, agent answers a question that requires a prior memory entry.
-- Char-limit overflow: agent gets a clear error, calls `replace`/`remove` to consolidate, retries successfully.
+- **隔离测试通过**：账号 A 写的记忆永远不出现在账号 B 的命名空间查询里（集成测试覆盖）。
+- **HITL 面板能用**：可以取消勾选、可以改文本、点确认后只有勾上的 + 编辑后的内容入 Store。
+- **新 thread 能看到记忆**：开新对话，记忆块出现在系统提示里，AI 能回答需要"之前记忆"才能答对的问题。
+- **超限保护生效**：桶满时 AI 能收到明确错误，调 `replace`/`remove` 整理后重试成功。
