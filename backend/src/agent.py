@@ -19,7 +19,7 @@ from .config import (
     TAVILY_API_KEY,
 )
 from .memory.prompt_inject import MemoryInjectMiddleware
-from .memory.tool import make_memory_tool
+from .memory.tool import make_memory_tool, make_memory_undo_tool
 from .skills_loader import get_skills_config, validate_skills
 
 # ─── Prompt loader ──────────────────────────────────────────────
@@ -151,11 +151,15 @@ _memory_tool = make_memory_tool(
     get_store=lambda: _memory_middleware._last_store,
     get_user_id=lambda: _memory_middleware._last_user_id,
 )
+_memory_undo_tool = make_memory_undo_tool(
+    get_store=lambda: _memory_middleware._last_store,
+    get_user_id=lambda: _memory_middleware._last_user_id,
+)
 
 # ─── Web search tool (Tavily) ───────────────────────────────────
 # Inherited by every SubAgent because none of them declare their own
 # `tools` field — see deepagents/graph.py:575 (inherit-from-parent logic).
-_agent_tools: list = [_memory_tool]
+_agent_tools: list = [_memory_tool, _memory_undo_tool]
 if TAVILY_API_KEY:
     # Imported lazily so the package is only required when the key is set.
     from langchain_tavily import TavilySearch

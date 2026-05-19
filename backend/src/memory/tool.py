@@ -134,3 +134,43 @@ def make_memory_tool(
         description=MEMORY_TOOL_DESCRIPTION,
         args_schema=MemoryToolInput,
     )
+
+
+# ────────────────────────────────────────────────────────────────
+# memory_undo — invoked when the user clicks "撤销" on a Toast.
+# Takes the entry's key (from the memory_saved stream event payload)
+# and deletes it directly, no substring matching needed.
+# ────────────────────────────────────────────────────────────────
+
+
+class MemoryUndoInput(BaseModel):
+    target: Bucket = Field(description="'user' 或 'memory'")
+    key: str = Field(description="memory_saved 事件里返回的完整 UUID key")
+
+
+def make_memory_undo_tool(
+    *,
+    get_store: Callable[[], BaseStore | None],
+    get_user_id: Callable[[], str | None],
+) -> StructuredTool:
+    """构造 memory_undo 工具实例（参数风格同 make_memory_tool）。"""
+
+    async def _undo(target: Bucket, key: str) -> str:
+        backend = get_store()
+        user_id = get_user_id()
+        if backend is None or user_id is None:
+            return "Error: memory not initialized for this thread."
+        store = MemoryStore(backend)
+        await store.remove_by_key(user_id, target, key)
+        return f"已撤销 [{target}] key={key[:8]}…"
+
+    return StructuredTool.from_function(
+        coroutine=_undo,
+        name="memory_undo",
+        description=(
+            "撤销最近的一次 memory.add —— 按完整 key 精确删除一条记忆。"
+            "只在用户点 Toast 的'撤销'按钮时调用（前端会发一个特殊的"
+            "__undo_memory__:<target>:<key> 用户消息触发你）。"
+        ),
+        args_schema=MemoryUndoInput,
+    )
