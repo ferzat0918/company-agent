@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from langgraph.store.base import BaseStore
@@ -37,7 +37,7 @@ class MemoryStore:
 
     async def add(self, user_id: str, bucket: Bucket, content: str) -> MemoryEntry:
         key = str(uuid.uuid4())
-        created_at = datetime.now(timezone.utc).isoformat()
+        created_at = datetime.now(UTC).isoformat()
         await self._backend.aput(
             namespace=self._ns(user_id, bucket),
             key=key,
