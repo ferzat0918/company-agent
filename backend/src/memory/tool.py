@@ -83,6 +83,21 @@ def make_memory_tool(
             if err:
                 return err
             entry = await store.add(user_id, target, content)
+            # Emit a stream event so the frontend can render a Toast with an
+            # undo button. Wrapped in try/except — in unit-test contexts
+            # there's no stream writer and that's fine.
+            try:
+                from langgraph.config import get_stream_writer
+
+                writer = get_stream_writer()
+                writer({
+                    "kind": "memory_saved",
+                    "key": entry.key,
+                    "target": target,
+                    "content": content,
+                })
+            except Exception:
+                pass
             return f"已存入 [{target}] (key={entry.key[:8]}…): {content}"
 
         if action in ("replace", "remove"):
