@@ -188,6 +188,45 @@ if (-not (Test-Path $EnvFile)) {
 }
 
 # =====================================================================
+#  PHASE 1.5: Check .env completeness
+# =====================================================================
+
+$envExample = Join-Path $ProjectRoot ".env.example"
+if ((Test-Path $EnvFile) -and (Test-Path $envExample)) {
+    Write-Step "Checking .env completeness..."
+    
+    # Extract KEY names from both files (ignore comments and blank lines)
+    $exampleKeys = Get-Content $envExample | Where-Object { $_ -match '^[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { ($_ -split '=')[0] }
+    $envKeys     = Get-Content $EnvFile   | Where-Object { $_ -match '^[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object { ($_ -split '=')[0] }
+    
+    $missingKeys = @()
+    foreach ($key in $exampleKeys) {
+        if ($envKeys -notcontains $key) {
+            $missingKeys += $key
+        }
+    }
+    
+    if ($missingKeys.Count -gt 0) {
+        Write-Warn "Your .env is missing $($missingKeys.Count) key(s) from .env.example:"
+        foreach ($k in $missingKeys) {
+            Write-Host "    - $k" -ForegroundColor Yellow
+        }
+        Write-Host ""
+        Write-Host "  Please add these to: $EnvFile" -ForegroundColor Yellow
+        Write-Host "  Reference: $envExample" -ForegroundColor DarkGray
+        Write-Host ""
+        $continue = Read-Host "  Continue anyway? (Y/n)"
+        if ($continue -and $continue -notmatch "^[Yy]") {
+            Write-Warn "Cancelled. Please update .env and run again."
+            Read-Host "Press Enter to exit"
+            exit 0
+        }
+    } else {
+        Write-Ok ".env has all required keys"
+    }
+}
+
+# =====================================================================
 #  PHASE 2: Check if this is a first-time deployment
 # =====================================================================
 
@@ -290,6 +329,7 @@ try {
     $restartKong       = $false
     $composeReconcile  = $false
     $autoReload        = $false
+    $dbMigration       = $false
 
     foreach ($file in $changedFiles) {
         switch -Wildcard ($file) {
@@ -316,6 +356,14 @@ try {
             "infra/docker-compose.prod.yml" { $composeReconcile = $true }
             "infra/kong.yml"               { $restartKong = $true }
             "infra/nginx.conf"             { $restartFrontend = $true }
+
+            # -- Database migration --
+            "infra/init-storage.sql"        { $dbMigration = $true }
+            "infra/fix-*.sql"               { $dbMigration = $true }
+            "backend/scripts/init_db.py"    { $dbMigration = $true; $restartLanggraph = $true }
+
+            # -- .env template changed --
+            ".env.example"                  { } # handled by Phase 1.5
         }
     }
 
@@ -344,6 +392,12 @@ try {
     }
     if ($restartFrontend) {
         Write-Warn "RESTART frontend container (static files or nginx config changed)"
+        $hasAction = $true
+    }
+    if ($dbMigration) {
+        Write-Warn "DATABASE MIGRATION detected (SQL or init_db.py changed)"
+        Write-Host "    init_db.py runs automatically on container restart." -ForegroundColor DarkGray
+        Write-Host "    If you added new .sql files, you may need to run them manually." -ForegroundColor DarkGray
         $hasAction = $true
     }
     if ($restartKong) {
