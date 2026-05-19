@@ -526,13 +526,13 @@ function AdminContent() {
     <main className="umx-scrollbar min-h-screen overflow-x-hidden bg-[var(--umx-bg-0)] text-[var(--umx-white)]">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-[var(--umx-line)] px-8 py-5">
-        <div className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
           <UmxSymbol size={28} className="text-[var(--umx-white)]" />
           <UmxWordmark size={22} />
           <span className="ml-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">
             · ADMIN DASHBOARD
           </span>
-        </div>
+        </Link>
         <div className="flex items-center gap-3">
           <span className="font-mono text-[10px] text-[var(--umx-text-dim)]">
             {user?.email}

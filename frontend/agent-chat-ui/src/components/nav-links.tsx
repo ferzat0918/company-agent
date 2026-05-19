@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   { href: "/", label: "HOME", labelZh: "主页" },
   { href: "/changelog", label: "CHANGELOG", labelZh: "更新日志" },
+  { href: "/profile", label: "PROFILE", labelZh: "个人主页" },
 ] as const;
 
 /**
