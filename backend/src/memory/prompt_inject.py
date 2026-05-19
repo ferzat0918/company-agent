@@ -4,7 +4,9 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from langchain.agents.middleware.types import AgentMiddleware
+from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
+from langgraph.store.base import BaseStore
 
 from .store import Bucket, MemoryStore
 
@@ -43,28 +45,33 @@ class MemoryInjectMiddleware(AgentMiddleware):
 
     用 abefore_agent 钩子，会话期间不会再次触发 —— 即保证了冻结快照语义。
 
-    Also caches the resolved user_id so other components (memory_tool factory)
-    can read the current request's user without re-walking the runtime context.
+    同时把当前 thread 解析出的 user_id 和平台注入的 store 缓存到实例字段上，
+    供同一个 thread 内的 memory tool 复用（避免每次工具调用都重新走 runtime）。
     """
 
     def __init__(
         self,
-        store: MemoryStore,
         get_user_id_from_runtime: Callable[[Runtime[Any]], str | None],
     ) -> None:
         super().__init__()
-        self._store = store
         self._get_user_id = get_user_id_from_runtime
         self._last_user_id: str | None = None
+        self._last_store: BaseStore | None = None
 
     async def abefore_agent(
         self, state: dict[str, Any], runtime: Runtime[Any]
     ) -> dict[str, Any] | None:
         user_id = self._get_user_id(runtime)
+        store = getattr(runtime, "store", None)
         self._last_user_id = user_id
-        if not user_id:
+        self._last_store = store
+        if not user_id or store is None:
             return None
-        block = await render_memory_blocks(self._store, user_id)
+        mem = MemoryStore(store)
+        block = await render_memory_blocks(mem, user_id)
         if not block:
             return None
-        return {"memory_block": block}
+        # 把记忆作为附加 SystemMessage 注入消息流 —— add_messages reducer 会
+        # 把它追加到现有消息列表，LLM 每次调用都会看到。冻结快照语义由本钩子
+        # 只在 agent 启动时跑一次保证。
+        return {"messages": [SystemMessage(content=block)]}

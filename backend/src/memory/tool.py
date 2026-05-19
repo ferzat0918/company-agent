@@ -9,6 +9,8 @@ from typing import Callable, Literal
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from langgraph.store.base import BaseStore
+
 from .security import scan_memory_content
 from .store import Bucket, MemoryStore
 
@@ -51,10 +53,16 @@ class MemoryToolInput(BaseModel):
 
 
 def make_memory_tool(
-    store: MemoryStore,
-    get_user_id: Callable[[], str],
+    *,
+    get_store: Callable[[], BaseStore | None],
+    get_user_id: Callable[[], str | None],
 ) -> StructuredTool:
-    """构造绑定到具体 store + user 上下文的工具实例。"""
+    """构造记忆工具实例。
+
+    `get_store` / `get_user_id` 都是惰性 callable —— 真正的 Postgres Store 由
+    LangGraph 平台在运行时注入到 runtime.store，所以工厂创建时拿不到，需要
+    每次调用时再去取（middleware 的 abefore_agent 钩子会缓存它们）。
+    """
 
     async def _run(
         action: str,
@@ -62,7 +70,11 @@ def make_memory_tool(
         content: str | None = None,
         old_text: str | None = None,
     ) -> str:
+        backend = get_store()
         user_id = get_user_id()
+        if backend is None or user_id is None:
+            return "Error: memory not initialized for this thread."
+        store = MemoryStore(backend)
 
         if action == "add":
             if not content:
