@@ -125,6 +125,12 @@ services:
       # mounts (which point back to the host's skills/ and prompts/).
       - ../skills:/app/skills:ro
       - ../prompts:/app/prompts:ro
+      # Live-mount backend source for fast dev iteration. Without this,
+      # every host-side code change needs a `docker compose build`
+      # before pytest / runtime can see it.  src/ is writeable so pip's
+      # editable install can refresh egg-info on package additions.
+      - ../backend/src:/app/backend/src
+      - ../backend/tests:/app/backend/tests
       - langgraph-data:/app/.langgraph_api
     depends_on:
       postgres:

@@ -12,7 +12,14 @@ from deepagents.backends import FilesystemBackend
 from deepagents.middleware.filesystem import FilesystemPermission
 from .chat_models import ChatDeepSeekThinking
 from .round_robin import RoundRobinChatModel
-from .config import DEEPSEEK_API_KEY, DEEPSEEK_API_KEYS, DEEPSEEK_MODEL, TAVILY_API_KEY
+from .config import (
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_API_KEYS,
+    DEEPSEEK_MODEL,
+    TAVILY_API_KEY,
+)
+from .memory.prompt_inject import MemoryInjectMiddleware
+from .memory.tool import make_memory_tool
 from .skills_loader import get_skills_config, validate_skills
 
 # ─── Prompt loader ──────────────────────────────────────────────
@@ -109,10 +116,46 @@ if skill_errors:
 
 skills_dirs = get_skills_config()
 
+# ─── Long-term memory ──────────────────────────────────────────
+# Per-user namespaced Postgres-backed Store. Exposed as both:
+#  - a tool (so the supervisor + every SubAgent can call memory.add)
+#  - a middleware (so each new thread starts with the user's prior
+#    memory rendered into the system message stream).
+#
+# The actual Store instance is provisioned by the LangGraph platform via
+# langgraph-docker.json's `store` field (see Dockerfile.langgraph) — we
+# never construct it here. The middleware's abefore_agent hook captures
+# both the runtime.store and the auth-resolved user_id, then the tool
+# reads them back through callables.
+
+
+def _user_id_from_runtime(runtime) -> str | None:
+    """Resolve the requesting user's Supabase id from the LangGraph runtime.
+
+    auth.py's verify_supabase_jwt returns ``{"identity": user_id, ...}``;
+    LangGraph wraps that in a ProxyUser and exposes it as
+    ``runtime.server_info.user.identity``.  (runtime.context is unrelated —
+    that's for graph-level user-provided context, which we don't use.)
+    """
+    server_info = getattr(runtime, "server_info", None)
+    user = getattr(server_info, "user", None) if server_info else None
+    if user is None:
+        return None
+    return getattr(user, "identity", None)
+
+
+_memory_middleware = MemoryInjectMiddleware(
+    get_user_id_from_runtime=_user_id_from_runtime,
+)
+_memory_tool = make_memory_tool(
+    get_store=lambda: _memory_middleware._last_store,
+    get_user_id=lambda: _memory_middleware._last_user_id,
+)
+
 # ─── Web search tool (Tavily) ───────────────────────────────────
 # Inherited by every SubAgent because none of them declare their own
 # `tools` field — see deepagents/graph.py:575 (inherit-from-parent logic).
-_agent_tools: list = []
+_agent_tools: list = [_memory_tool]
 if TAVILY_API_KEY:
     # Imported lazily so the package is only required when the key is set.
     from langchain_tavily import TavilySearch
@@ -192,4 +235,5 @@ agent = create_deep_agent(
     skills=skills_dirs,
     backend=FilesystemBackend(root_dir=".", virtual_mode=True),
     permissions=AGENT_FS_PERMISSIONS,
+    middleware=[_memory_middleware],
 )
