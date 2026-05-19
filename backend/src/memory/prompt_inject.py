@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from langchain.agents.middleware.types import AgentMiddleware
+from langchain.agents.middleware.types import AgentMiddleware, ModelRequest
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
@@ -61,17 +61,43 @@ class MemoryInjectMiddleware(AgentMiddleware):
     async def abefore_agent(
         self, state: dict[str, Any], runtime: Runtime[Any]
     ) -> dict[str, Any] | None:
-        user_id = self._get_user_id(runtime)
-        store = getattr(runtime, "store", None)
-        self._last_user_id = user_id
-        self._last_store = store
-        if not user_id or store is None:
-            return None
-        mem = MemoryStore(store)
-        block = await render_memory_blocks(mem, user_id)
-        if not block:
-            return None
-        # 把记忆作为附加 SystemMessage 注入消息流 —— add_messages reducer 会
-        # 把它追加到现有消息列表，LLM 每次调用都会看到。冻结快照语义由本钩子
-        # 只在 agent 启动时跑一次保证。
-        return {"messages": [SystemMessage(content=block)]}
+        """Cache the per-thread user_id and store for downstream hooks.
+
+        Returns no state updates — the actual memory injection happens inside
+        awrap_model_call, which mutates ModelRequest.system_message (the LLM-
+        only system slot) instead of state.messages. This keeps memory out of
+        the persisted message list, so:
+          - the frontend never renders it as a chat bubble, and
+          - it doesn't accumulate one duplicate per turn.
+        """
+        self._last_user_id = self._get_user_id(runtime)
+        self._last_store = getattr(runtime, "store", None)
+        return None
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Any],
+    ) -> Any:
+        # Re-read store/user_id on every model call — abefore_agent caches
+        # them at agent start but the request's own runtime is the truth.
+        runtime = request.runtime
+        user_id = self._get_user_id(runtime) if runtime else self._last_user_id
+        store = (getattr(runtime, "store", None) if runtime else None) or self._last_store
+        # Keep cache fresh so the memory tool sees the same values.
+        if user_id is not None:
+            self._last_user_id = user_id
+        if store is not None:
+            self._last_store = store
+
+        if user_id and store is not None:
+            mem = MemoryStore(store)
+            block = await render_memory_blocks(mem, user_id)
+            if block:
+                if request.system_message is not None:
+                    request.system_message = SystemMessage(
+                        content=f"{request.system_message.content}\n\n{block}"
+                    )
+                else:
+                    request.system_message = SystemMessage(content=block)
+        return await handler(request)
