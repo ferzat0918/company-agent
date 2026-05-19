@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { type Message } from "@langchain/langgraph-sdk";
 import {
@@ -98,14 +99,15 @@ const StreamSession = ({
     onCustomEvent: (event, options) => {
       if (isMemorySavedEvent(event)) {
         showMemorySavedToast(event, (key, target) => {
-          // Send a hidden user message that supervisor.md recognises and
+          // Send a hidden human message that supervisor.md recognises and
           // routes to the memory_undo tool. Falls back silently if the
           // stream isn't ready yet (shouldn't happen in practice).
-          submitRef.current?.({
-            messages: [
-              { role: "user", content: `__undo_memory__:${target}:${key}` },
-            ],
-          });
+          const undoTrigger: Message = {
+            id: uuidv4(),
+            type: "human",
+            content: `__undo_memory__:${target}:${key}`,
+          };
+          submitRef.current?.({ messages: [undoTrigger] });
         });
         return;
       }
