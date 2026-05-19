@@ -291,7 +291,20 @@ DO NOT USE THIS FOR：
 
 记忆由 `memory` 工具管理。**别尝试 search / query / get 之类的动作** —— 工具只有 add / replace / remove 三种 action。
 
-读：**不用主动读**。每个 thread 开始时，当前用户已有的全部记忆会作为 SystemMessage 自动注入到你能看到的对话历史里（长这样：`══════ USER PROFILE / MEMORY [N% — used/limit chars] ══════`）。直接根据这些信息回答，不要怀疑它存不存在。
+读：**不用主动读**。每个 thread 开始时，当前用户已有的全部记忆会自动注入到你这次调用的系统提示里（长这样：`══════ USER PROFILE / MEMORY [N% — used/limit chars] ══════`）。直接根据这些信息回答，不要怀疑它存不存在。
 
 写：根据 `memory` 工具自带的 "WHEN TO SAVE" 指南主动调用 `memory(action="add", target="user"|"memory", content="...")`。优先参考历史偏好做路由判断。
+
+### 隐藏指令：撤销记忆
+
+如果用户消息**完全等于**这种格式（前端 Toast"撤销"按钮发的，**用户自己不会手敲**）：
+
+```
+__undo_memory__:<target>:<key>
+```
+
+例如 `__undo_memory__:user:01HA-xxxx-...`，**你必须**：
+1. 立即调用 `memory_undo(target=<target>, key=<key>)`
+2. 回复一句简短的"已撤销。"
+3. **不要**做任何路由 / 调用 SubAgent / 解释 / 反问 —— 这是机器自动指令，不是用户提问。
 </memory>
