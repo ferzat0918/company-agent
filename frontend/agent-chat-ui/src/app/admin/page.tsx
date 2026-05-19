@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Bug, Lightbulb, Clock, Paperclip, Search,
   FileText, FileSpreadsheet, Music, Film, Image as ImageIcon,
-  Download, ChevronDown, Shield, MessageSquare, Save, X,
+  Download, ChevronDown, Shield, MessageSquare, Save, X, Trash2, Timer,
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +20,8 @@ import type { AttachmentMeta } from "@/components/FeedbackModal";
 const ADMIN_EMAILS = [
   "freddyferzat@gmail.com",
 ];
+
+const REJECTED_TTL_DAYS = 30;
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -57,6 +59,12 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function daysUntilAutoDelete(updatedAt: string): number {
+  const updated = new Date(updatedAt).getTime();
+  const deadline = updated + REJECTED_TTL_DAYS * 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((deadline - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
 function humanSize(bytes: number): string {
@@ -305,11 +313,15 @@ function AttachmentChips({ attachments }: { attachments: AttachmentMeta[] }) {
 function FeedbackTableRow({
   item,
   onStatusChange,
+  onDelete,
 }: {
   item: FeedbackRow;
   onStatusChange: (id: string, newStatus: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const [updating, setUpdating] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleStatusChange = async (newStatus: string) => {
     setUpdating(true);
@@ -321,10 +333,27 @@ function FeedbackTableRow({
     if (!error) onStatusChange(item.id, newStatus);
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    // Also delete attachments from storage
+    const attachments = item.attachments ?? [];
+    if (attachments.length > 0) {
+      const paths = attachments.map((a) => a.path);
+      await supabase.storage.from("feedback-attachments").remove(paths);
+    }
+    const { error } = await supabase.from("feedback").delete().eq("id", item.id);
+    setDeleting(false);
+    if (!error) onDelete(item.id);
+    setConfirmDelete(false);
+  };
+
+  const remainingDays = item.status === "rejected" ? daysUntilAutoDelete(item.updated_at) : null;
+
   return (
     <motion.tr
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      exit={{ opacity: 0, height: 0 }}
       className="border-b border-[var(--umx-line)] transition-colors hover:bg-[rgba(255,255,255,0.02)]"
     >
       {/* Type */}
@@ -353,13 +382,19 @@ function FeedbackTableRow({
         <AttachmentChips attachments={item.attachments} />
       </td>
 
-      {/* Status */}
+      {/* Status + countdown */}
       <td className="px-4 py-3">
         <StatusDropdown
           currentStatus={item.status}
           onSelect={handleStatusChange}
           disabled={updating}
         />
+        {remainingDays !== null && (
+          <div className="mt-1 flex items-center gap-1 font-mono text-[9px] text-[#ff6b6b]">
+            <Timer className="size-2.5" />
+            <span>{remainingDays}天后自动删除</span>
+          </div>
+        )}
       </td>
 
       {/* Admin Note */}
@@ -373,6 +408,35 @@ function FeedbackTableRow({
           <Clock className="size-3" />
           <span className="font-mono text-[10px]">{formatDate(item.created_at)}</span>
         </div>
+      </td>
+
+      {/* Actions */}
+      <td className="px-4 py-3">
+        {confirmDelete ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="font-mono text-[9px] uppercase tracking-wider text-[#ff6b6b] transition-colors hover:text-white"
+            >
+              {deleting ? "..." : "确认"}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)] transition-colors hover:text-white"
+            >
+              取消
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="flex size-6 items-center justify-center text-[var(--umx-text-dim)] transition-colors hover:text-[#ff6b6b]"
+            title="删除"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
       </td>
     </motion.tr>
   );
@@ -420,6 +484,14 @@ function AdminContent() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const fetchData = useCallback(async () => {
+    // Auto-cleanup: delete rejected items older than 30 days
+    const cutoff = new Date(Date.now() - REJECTED_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    await supabase
+      .from("feedback")
+      .delete()
+      .eq("status", "rejected")
+      .lt("updated_at", cutoff);
+
     const { data, error } = await supabase
       .from("feedback")
       .select("*")
@@ -438,6 +510,10 @@ function AdminContent() {
         item.id === id ? { ...item, status: newStatus, updated_at: new Date().toISOString() } : item,
       ),
     );
+  };
+
+  const handleDelete = (id: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   // Apply filters
@@ -560,16 +636,21 @@ function AdminContent() {
                   <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">STATUS</th>
                   <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">NOTE</th>
                   <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">DATE</th>
+                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]"></th>
                 </tr>
               </thead>
               <tbody>
+                <AnimatePresence>
                 {filtered.map((item) => (
                   <FeedbackTableRow
                     key={item.id}
                     item={item}
                     onStatusChange={handleStatusChange}
+                    onDelete={handleDelete}
                   />
-                ))}
+                ))
+                }
+                </AnimatePresence>
               </tbody>
             </table>
           )}
