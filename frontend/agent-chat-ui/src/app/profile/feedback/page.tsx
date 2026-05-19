@@ -3,12 +3,16 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, Bug, Lightbulb, Clock } from "lucide-react";
+import {
+  ArrowLeft, Bug, Lightbulb, Clock, Paperclip,
+  FileText, FileSpreadsheet, Music, Film, Image as ImageIcon, Download,
+} from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { UmxSymbol, UmxWordmark } from "@/components/icons/umx-logo";
 import { LoginPage } from "@/components/LoginPage";
+import type { AttachmentMeta } from "@/components/FeedbackModal";
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -19,6 +23,7 @@ type FeedbackRow = {
   status: string;
   created_at: string;
   updated_at: string;
+  attachments: AttachmentMeta[];
 };
 
 /* ── Status config ─────────────────────────────────────────────── */
@@ -94,9 +99,37 @@ function UmxLoadingScreen() {
   );
 }
 
+/* ── Attachment helpers ────────────────────────────────────────── */
+
+function attachmentIcon(mime: string) {
+  if (mime.startsWith("image/")) return <ImageIcon className="size-3.5" />;
+  if (mime.startsWith("video/")) return <Film className="size-3.5" />;
+  if (mime.startsWith("audio/")) return <Music className="size-3.5" />;
+  if (mime.includes("spreadsheet") || mime.includes("excel"))
+    return <FileSpreadsheet className="size-3.5" />;
+  return <FileText className="size-3.5" />;
+}
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getPublicUrl(path: string): string {
+  const { data } = supabase.storage
+    .from("feedback-attachments")
+    .getPublicUrl(path);
+  return data.publicUrl;
+}
+
 /* ── Feedback card ─────────────────────────────────────────────── */
 
 function FeedbackCard({ item }: { item: FeedbackRow }) {
+  const attachments = item.attachments ?? [];
+  const images = attachments.filter((a) => a.type.startsWith("image/"));
+  const others = attachments.filter((a) => !a.type.startsWith("image/"));
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -108,6 +141,12 @@ function FeedbackCard({ item }: { item: FeedbackRow }) {
         <div className="flex items-center gap-3">
           <TypeBadge type={item.type} />
           <StatusBadge status={item.status} />
+          {attachments.length > 0 && (
+            <span className="inline-flex items-center gap-1 font-mono text-[10px] text-[var(--umx-text-dim)]">
+              <Paperclip className="size-3" />
+              {attachments.length}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 text-[var(--umx-text-dim)]">
           <Clock className="size-3" />
@@ -123,6 +162,59 @@ function FeedbackCard({ item }: { item: FeedbackRow }) {
           {item.content}
         </p>
       </div>
+
+      {/* Attachments */}
+      {attachments.length > 0 && (
+        <div className="border-t border-[var(--umx-line)] px-5 py-3">
+          <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--umx-text-dim)]">
+            ATTACHMENTS ({attachments.length})
+          </p>
+
+          {/* Image thumbnails */}
+          {images.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {images.map((att) => (
+                <a
+                  key={att.path}
+                  href={getPublicUrl(att.path)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative block size-16 overflow-hidden border border-[var(--umx-line)] transition-colors hover:border-[var(--umx-acid)]"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <img
+                    src={getPublicUrl(att.path)}
+                    alt={att.name}
+                    className="size-full object-cover transition-transform group-hover:scale-110"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* Other file links */}
+          {others.length > 0 && (
+            <div className="space-y-1">
+              {others.map((att) => (
+                <a
+                  key={att.path}
+                  href={getPublicUrl(att.path)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-2 py-1.5 font-mono text-[11px] text-[var(--umx-silver)] transition-colors hover:text-[var(--umx-acid)]"
+                >
+                  {attachmentIcon(att.type)}
+                  <span className="min-w-0 flex-1 truncate">{att.name}</span>
+                  <span className="shrink-0 text-[9px] text-[var(--umx-text-dim)]">
+                    {humanSize(att.size)}
+                  </span>
+                  <Download className="size-3 shrink-0" />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -162,7 +254,7 @@ function FeedbackListContent() {
     (async () => {
       const { data, error } = await supabase
         .from("feedback")
-        .select("id, type, content, status, created_at, updated_at")
+        .select("id, type, content, status, created_at, updated_at, attachments")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
