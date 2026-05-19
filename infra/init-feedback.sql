@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS public.feedback (
                CHECK (status IN ('submitted', 'accepted', 'in_progress', 'rejected', 'on_hold')),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  attachments  JSONB NOT NULL DEFAULT '[]'::jsonb
+  attachments  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  admin_note   TEXT NOT NULL DEFAULT ''
 );
 
 -- Index for fast per-user lookups

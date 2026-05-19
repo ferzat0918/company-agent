@@ -291,7 +291,30 @@ DO NOT USE THIS FOR：
 
 记忆由 `memory` 工具管理。**别尝试 search / query / get 之类的动作** —— 工具只有 add / replace / remove 三种 action。
 
-读：**不用主动读**。每个 thread 开始时，当前用户已有的全部记忆会作为 SystemMessage 自动注入到你能看到的对话历史里（长这样：`══════ USER PROFILE / MEMORY [N% — used/limit chars] ══════`）。直接根据这些信息回答，不要怀疑它存不存在。
+读：**不用主动读**。每个 thread 开始时，当前用户已有的全部记忆会自动注入到你这次调用的系统提示里（长这样：`══════ USER PROFILE / MEMORY [N% — used/limit chars] ══════`）。直接根据这些信息回答，不要怀疑它存不存在。
 
 写：根据 `memory` 工具自带的 "WHEN TO SAVE" 指南主动调用 `memory(action="add", target="user"|"memory", content="...")`。优先参考历史偏好做路由判断。
+
+### 隐藏指令：撤销记忆
+
+如果用户消息**完全等于**这种格式（前端 Toast"撤销"按钮发的，**用户自己不会手敲**）：
+
+```
+__undo_memory__:<target>:<key>
+```
+
+例如 `__undo_memory__:user:01HA-xxxx-...`，**你必须**：
+1. 立即调用 `memory_undo(target=<target>, key=<key>)`
+2. 回复一句简短的"已撤销。"
+3. **不要**做任何路由 / 调用 SubAgent / 解释 / 反问 —— 这是机器自动指令，不是用户提问。
+
+### 隐藏指令：批量总结记忆
+
+如果用户消息**完全等于** `__summarize_memory__`（前端"总结记忆"按钮发的，**用户自己不会手敲**），**你必须**：
+
+1. 回顾当前对话历史（**仅当前 thread**，不要参考别的记忆），按 `memory` 工具的 "WHEN TO SAVE" 标准识别值得长期记住的事实，最多 5 条。
+2. 对每一条调用 `memory(action="add", target="user"|"memory", content="...")`。条目要 ≤ 200 字符、自包含、对未来会话有用。
+3. **跳过**已经在你系统提示的 USER PROFILE / MEMORY 块里出现过的事实（避免重复）。
+4. 全部入库后回复一句"已记住 N 条。"，N 是实际成功 add 的数量。如果没有值得记的，就回"没有需要记忆的新内容。"。
+5. **不要**路由到任何 SubAgent，**不要**解释你存了什么（Toast 会展示），**不要**反问用户确认 —— 这是一次性自助动作。
 </memory>

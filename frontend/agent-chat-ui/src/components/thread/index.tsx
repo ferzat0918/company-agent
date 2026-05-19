@@ -26,6 +26,7 @@ import {
 import { useQueryState, parseAsBoolean } from "nuqs";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
+import { MemorySummarizeButton } from "./memory-summarize-button";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Label } from "../ui/label";
@@ -568,17 +569,19 @@ export function Thread() {
                             Cancel
                           </Button>
                         ) : (
-                          <Button
-                            type="submit"
-                            variant="acid"
-                            className="ml-auto"
-                            disabled={
-                              isLoading ||
-                              (!input.trim() && contentBlocks.length === 0)
-                            }
-                          >
-                            Send →
-                          </Button>
+                          <div className="ml-auto flex items-center gap-1">
+                            <MemorySummarizeButton />
+                            <Button
+                              type="submit"
+                              variant="acid"
+                              disabled={
+                                isLoading ||
+                                (!input.trim() && contentBlocks.length === 0)
+                              }
+                            >
+                              Send →
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </form>
