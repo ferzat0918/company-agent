@@ -167,7 +167,9 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
         const file = files[i];
         const ts = Date.now();
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const filePath = `${user?.id}/${ts}_${safeName}`;
+        const now = new Date();
+        const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const filePath = `${user?.id}/${yearMonth}/${ts}_${safeName}`;
 
         setUploadProgress(Math.round(((i) / files.length) * 100));
 
