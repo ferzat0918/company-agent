@@ -4,11 +4,10 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
-import { Button } from "@/components/ui/button";
 import { UmxSymbol, UmxWordmark } from "@/components/icons/umx-logo";
 import { LoginPage } from "@/components/LoginPage";
+import { NavLinks } from "@/components/nav-links";
 
 function UmxLoadingScreen() {
   return (
@@ -55,12 +54,7 @@ function ChangelogContent() {
             · COMPANY AGENT / CHANGELOG
           </span>
         </div>
-        <Link href="/">
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <ArrowLeft className="size-3" />
-            BACK TO CHAT
-          </Button>
-        </Link>
+        <NavLinks />
       </header>
 
       <div className="mx-auto max-w-3xl px-8 py-12">

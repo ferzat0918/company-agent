@@ -28,6 +28,7 @@ import { useQueryState, parseAsBoolean } from "nuqs";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import ThreadHistory from "./history";
 import { MemorySummarizeButton } from "./memory-summarize-button";
+import { NavLinks } from "@/components/nav-links";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Label } from "../ui/label";
@@ -341,13 +342,14 @@ export function Thread() {
                   </Button>
                 )}
               </div>
-              <div className="absolute top-2 right-4 flex items-center">
+              <div className="absolute top-2 right-4 flex items-center gap-3">
+                <NavLinks />
                 <OpenGitHubRepo />
               </div>
             </div>
           )}
           {chatStarted && (
-            <div className="relative z-10 flex items-center justify-between gap-3 p-2">
+            <div className="relative z-10 flex items-center gap-3 p-2">
               <div className="relative flex items-center justify-start gap-2">
                 <div className="absolute left-0 z-10">
                   {(!chatHistoryOpen || !isLargeScreen) && (
@@ -382,6 +384,8 @@ export function Thread() {
                   </span>
                 </motion.button>
               </div>
+
+              <NavLinks className="ml-auto" />
 
               <div className="flex items-center gap-4">
                 <div className="flex items-center">
