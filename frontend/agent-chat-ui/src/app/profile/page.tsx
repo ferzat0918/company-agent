@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, AlertCircle, MessageSquarePlus, ListChecks, Shield } from "lucide-react";
+import { ArrowLeft, Check, AlertCircle, MessageSquarePlus, ListChecks, Shield, FileText } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -298,10 +298,29 @@ function PasswordCard() {
   );
 }
 
+function ChangelogCard() {
+  return (
+    <section>
+      <SectionLabel index="03" title="UPDATES" />
+      <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-6">
+        <p className="mb-6 font-body text-sm leading-relaxed text-[var(--umx-silver)]">
+          想知道这次更新加了什么新功能、修了什么 Bug？看更新日志。
+        </p>
+        <Link href="/changelog">
+          <Button variant="outline" size="lg" className="w-full gap-2">
+            <FileText className="size-4" />
+            CHANGELOG / 更新日志
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function FeedbackCard({ onOpenModal }: { onOpenModal: () => void }) {
   return (
     <section>
-      <SectionLabel index="03" title="FEEDBACK & REQUESTS" />
+      <SectionLabel index="04" title="FEEDBACK & REQUESTS" />
       <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-6">
         <p
           className="mb-6 font-body text-sm leading-relaxed text-[var(--umx-silver)]"
@@ -344,7 +363,7 @@ function AdminCard() {
 
   return (
     <section>
-      <SectionLabel index="04" title="ADMIN" />
+      <SectionLabel index="05" title="ADMIN" />
       <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-6">
         <p className="mb-6 font-body text-sm leading-relaxed text-[var(--umx-silver)]">
           管理后台：查看所有用户反馈、修改处理状态、添加备注。
@@ -403,6 +422,7 @@ function ProfileContent() {
       <div className="mx-auto max-w-3xl space-y-12 px-8 py-12">
         <AccountInfoCard profile={profile} />
         <PasswordCard />
+        <ChangelogCard />
         <FeedbackCard onOpenModal={() => setFeedbackOpen(true)} />
         <AdminCard />
       </div>
