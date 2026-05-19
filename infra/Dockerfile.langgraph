@@ -17,6 +17,7 @@ COPY langgraph.json ./langgraph.json
 # In dev, docker-compose.yml still bind-mounts these paths over the baked copies.
 COPY skills/ ./skills/
 COPY prompts/ ./prompts/
+COPY infra/*.sql ./infra/
 
 # Pre-install Python deps at build time (langgraph dev will verify/reuse)
 RUN pip install --no-cache-dir -e "./backend[dev]"
