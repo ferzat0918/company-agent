@@ -190,9 +190,9 @@ def build_section(
 
 
 def prepend_changelog(new_section: str) -> None:
-    seed = "# 更新日志\n\n所有用户可见的变化都会列在这里。版本号遵循 SemVer。\n\n"
+    # 只保留一个干净的 H1 标题；不写任何"使用说明"类的元信息，那些放在 README/skill 里
+    seed = "# 更新日志\n\n"
     existing = CHANGELOG_PATH.read_text(encoding="utf-8") if CHANGELOG_PATH.exists() else seed
-    # 把新章节插在第一个 `##` 之前；若文件里还没有 `##`，直接接在 seed 之后
     head, sep, tail = existing.partition("\n## ")
     if sep:
         body = head + "\n" + new_section + "\n" + sep + tail
