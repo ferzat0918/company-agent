@@ -18,3 +18,8 @@ CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON public.feedback (user_id);
 
 -- Index for admin status filtering
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON public.feedback (status);
+
+-- Grant permissions to authenticated role (PostgREST uses JWT role claim)
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT ALL ON public.feedback TO authenticated;
+GRANT ALL ON public.feedback TO anon;
