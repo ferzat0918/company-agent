@@ -47,3 +47,11 @@ DO $$ BEGIN
     FOR SELECT TO anon USING (bucket_id = 'feedback-attachments');
   EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Auto-cleanup: delete rejected feedback older than 30 days (runs daily at 03:00 UTC)
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+SELECT cron.schedule(
+  'cleanup-rejected-feedback',
+  '0 3 * * *',
+  'DELETE FROM public.feedback WHERE status = ''rejected'' AND updated_at < now() - interval ''30 days'''
+);

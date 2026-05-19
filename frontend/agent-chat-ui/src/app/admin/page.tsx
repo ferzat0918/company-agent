@@ -484,14 +484,6 @@ function AdminContent() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const fetchData = useCallback(async () => {
-    // Auto-cleanup: delete rejected items older than 30 days
-    const cutoff = new Date(Date.now() - REJECTED_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    await supabase
-      .from("feedback")
-      .delete()
-      .eq("status", "rejected")
-      .lt("updated_at", cutoff);
-
     const { data, error } = await supabase
       .from("feedback")
       .select("*")
