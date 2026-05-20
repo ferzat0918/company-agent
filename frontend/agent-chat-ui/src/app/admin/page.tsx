@@ -7,7 +7,8 @@ import {
   ArrowLeft, Bug, Lightbulb, Clock, Paperclip, Search,
   FileText, FileSpreadsheet, Music, Film, Image as ImageIcon,
   Download, ChevronDown, Shield, MessageSquare, Save, X, Trash2, Timer,
-  Copy, Sparkles, DownloadCloud, FileJson, CheckSquare, Square, Info
+  Copy, Sparkles, DownloadCloud, FileJson, CheckSquare, Square, Info,
+  Users, UserCheck, ShieldAlert, MapPin, Building
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase } from "@/lib/supabase";
@@ -38,6 +39,19 @@ type FeedbackRow = {
   attachments: AttachmentMeta[];
   admin_note: string;
 };
+
+type UserViewRow = {
+  user_id: string;
+  email: string | null;
+  registered_at: string;
+  dept: string;
+  role: string;
+  region: string;
+};
+
+const DEPTS = ["研发部", "产品设计部", "市场运营部", "客户成功部", "未分配"];
+const ROLES = ["系统管理员", "部门主管", "普通用户"];
+const REGIONS = ["华东地区", "华南地区", "华北地区", "海外地区", "未分配"];
 
 type FilterType = "all" | "bug" | "feature";
 type FilterStatus = "all" | "submitted" | "accepted" | "in_progress" | "rejected" | "on_hold";
@@ -703,6 +717,247 @@ function DetailDrawer({
   );
 }
 
+/* ── User Edit Drawer Slider ─────────────────────────────────────── */
+
+function UserEditDrawer({
+  item,
+  onClose,
+  onSave,
+}: {
+  item: UserViewRow;
+  onClose: () => void;
+  onSave: (updated: UserViewRow) => void;
+}) {
+  const [dept, setDept] = useState(item.dept || "未分配");
+  const [role, setRole] = useState(item.role || "普通用户");
+  const [region, setRegion] = useState(item.region || "未分配");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDept(item.dept || "未分配");
+    setRole(item.role || "普通用户");
+    setRegion(item.region || "未分配");
+  }, [item]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({
+        user_id: item.user_id,
+        dept,
+        role,
+        region,
+      });
+    setSaving(false);
+    if (!error) {
+      onSave({
+        ...item,
+        dept,
+        role,
+        region,
+      });
+      onClose();
+    } else {
+      alert("更新失败，请重试！");
+    }
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+      />
+
+      {/* Drawer */}
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="fixed bottom-0 right-0 top-0 z-50 flex h-full w-[450px] max-w-full flex-col border-l border-[var(--umx-line)] bg-[var(--umx-bg-1)] shadow-2xl"
+      >
+        {/* Drawer Header */}
+        <div className="flex items-center justify-between border-b border-[var(--umx-line)] px-6 py-5 bg-[var(--umx-bg-0)]">
+          <div className="flex items-center gap-2">
+            <UserCheck size={20} className="text-[var(--umx-acid)]" />
+            <span className="font-mono text-[10px] tracking-[0.2em] text-[var(--umx-white)] uppercase">EDIT USER PROFILE</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex size-8 items-center justify-center border border-[var(--umx-line)] text-[var(--umx-text-dim)] hover:border-[var(--umx-acid)] hover:text-[var(--umx-acid)] transition-colors"
+            style={{ borderRadius: "2px" }}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 umx-scrollbar">
+          {/* User ID & Email info */}
+          <div className="border border-[var(--umx-line)] bg-black/20 p-4 font-mono text-[10px] space-y-2">
+            <div className="flex justify-between">
+              <span className="text-[var(--umx-text-dim)] uppercase">EMAIL ADDRESS:</span>
+              <span className="text-[var(--umx-silver)] select-all">{item.email || "Anonymous"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--umx-text-dim)] uppercase">USER ID:</span>
+              <span className="text-[var(--umx-text-dim)] select-all">{item.user_id}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--umx-text-dim)] uppercase">REGISTERED AT:</span>
+              <span className="text-[var(--umx-silver)]">{formatDate(item.registered_at)}</span>
+            </div>
+          </div>
+
+          {/* Department Select */}
+          <div className="space-y-2">
+            <label className="font-display text-[11px] font-bold text-white uppercase tracking-wider block">分配部门 (DEPARTMENT)</label>
+            <div className="relative">
+              <select
+                value={dept}
+                onChange={(e) => setDept(e.target.value)}
+                className="w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
+                style={{ borderRadius: "2px" }}
+              >
+                {DEPTS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Role Select */}
+          <div className="space-y-2">
+            <label className="font-display text-[11px] font-bold text-white uppercase tracking-wider block">分配角色 (ROLE)</label>
+            <div className="relative">
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
+                style={{ borderRadius: "2px" }}
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Region Select */}
+          <div className="space-y-2">
+            <label className="font-display text-[11px] font-bold text-white uppercase tracking-wider block">所属地区 (REGION)</label>
+            <div className="relative">
+              <select
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
+                style={{ borderRadius: "2px" }}
+              >
+                {REGIONS.map((reg) => (
+                  <option key={reg} value={reg}>{reg}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-4 border-t border-[var(--umx-line)] flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-[var(--umx-line)] hover:border-white font-mono text-[10px] uppercase tracking-widest text-[var(--umx-silver)] transition-all font-bold"
+              style={{ borderRadius: "2px" }}
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 py-2.5 font-mono text-[10px] uppercase tracking-widest text-black bg-[var(--umx-acid)] hover:bg-white disabled:bg-[var(--umx-line)] disabled:text-[var(--umx-text-dim)] transition-all font-bold"
+              style={{ borderRadius: "2px", cursor: saving ? "not-allowed" : "pointer" }}
+            >
+              {saving ? "SAVING..." : "保存变更"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+/* ── User Stats Visualizer Dashboard ────────────────────────────── */
+
+function UserStatsDashboard({ items }: { items: UserViewRow[] }) {
+  const total = items.length;
+  const adminCount = items.filter((i) => i.role === "系统管理员").length;
+  const deptAssigned = items.filter((i) => i.dept && i.dept !== "未分配").length;
+  const assignedPercent = total > 0 ? Math.round((deptAssigned / total) * 100) : 0;
+
+  return (
+    <div
+      className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3"
+      style={{
+        background: "rgba(0,0,0,0.4)",
+        border: "1px solid var(--umx-line)",
+        borderRadius: "2px",
+        padding: "20px",
+      }}
+    >
+      {/* Total Users */}
+      <div className="flex items-center gap-4 border-r border-[var(--umx-line)] pr-4 last:border-none md:border-r font-mono">
+        <div className="flex size-12 items-center justify-center bg-white/5 border border-[var(--umx-line)] shrink-0">
+          <Users className="size-6 text-[var(--umx-acid)]" />
+        </div>
+        <div>
+          <h4 className="font-display text-[11px] font-bold text-[var(--umx-white)] uppercase tracking-wider mb-0.5">总注册用户数 (TOTAL USERS)</h4>
+          <p className="font-mono text-lg font-bold text-white mb-0">
+            {total} <span className="text-[10px] font-normal text-[var(--umx-text-dim)] uppercase tracking-widest">ACCOUNTS</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Role Counts */}
+      <div className="flex items-center gap-4 border-r border-[var(--umx-line)] pr-4 last:border-none md:border-r font-mono">
+        <div className="flex size-12 items-center justify-center bg-white/5 border border-[var(--umx-line)] shrink-0">
+          <ShieldAlert className="size-6 text-[#7201FF]" />
+        </div>
+        <div>
+          <h4 className="font-display text-[11px] font-bold text-[var(--umx-white)] uppercase tracking-wider mb-0.5">特权管理员数 (PRIVILEGES)</h4>
+          <p className="font-mono text-lg font-bold text-white mb-0">
+            {adminCount} <span className="text-[10px] font-normal text-[var(--umx-text-dim)] uppercase tracking-widest">ADMINISTRATORS</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Assignment rate */}
+      <div className="flex flex-col justify-center gap-1.5 pr-2">
+        <div className="flex justify-between items-baseline font-mono text-[9px]">
+          <span className="text-[var(--umx-text-dim)] uppercase tracking-widest">组织部门分配率 (DEPT ASSIGNED)</span>
+          <span className="text-white font-bold">{deptAssigned} / {total} ({assignedPercent}%)</span>
+        </div>
+        <div className="h-1.5 w-full bg-[rgba(255,255,255,0.03)] border border-[var(--umx-line)] p-[1px]">
+          <div
+            className="h-full bg-gradient-to-r from-[#7201FF] to-[var(--umx-acid)] transition-all duration-500"
+            style={{ width: `${assignedPercent}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[7px] font-mono text-[var(--umx-text-dim)] tracking-wider">
+          <span>UMX ACCESS & PROFILE SYSTEM</span>
+          <span>CYBERPUNK v1.1.2</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Feedback Table Row ────────────────────────────────────────── */
 
 function FeedbackTableRow({
@@ -909,6 +1164,16 @@ function AdminContent() {
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FeedbackRow | null>(null);
 
+  /* User management state */
+  const [activeTab, setActiveTab] = useState<"feedback" | "users">("feedback");
+  const [usersData, setUsersData] = useState<UserViewRow[]>([]);
+  const [userLoading, setUserLoading] = useState(true);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userFilterDept, setUserFilterDept] = useState<string>("all");
+  const [userFilterRole, setUserFilterRole] = useState<string>("all");
+  const [userSortByDate, setUserSortByDate] = useState<"desc" | "asc">("desc");
+  const [selectedUser, setSelectedUser] = useState<UserViewRow | null>(null);
+
   /* Dev tools state */
   const [devOpen, setDevOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -922,9 +1187,19 @@ function AdminContent() {
     setLoading(false);
   }, []);
 
+  const fetchUsers = useCallback(async () => {
+    setUserLoading(true);
+    const { data, error } = await supabase
+      .from("admin_user_view")
+      .select("*");
+    if (!error && data) setUsersData(data as UserViewRow[]);
+    setUserLoading(false);
+  }, []);
+
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchUsers();
+  }, [fetchData, fetchUsers]);
 
   const handleStatusChange = (id: string, newStatus: string) => {
     setItems((prev) =>
@@ -1069,6 +1344,66 @@ function AdminContent() {
     document.body.removeChild(link);
   };
 
+  // User filters output
+  const filteredUsers = usersData.filter((userRow) => {
+    if (userFilterDept !== "all" && userRow.dept !== userFilterDept) return false;
+    if (userFilterRole !== "all" && userRow.role !== userFilterRole) return false;
+
+    if (userSearchQuery) {
+      const q = userSearchQuery.toLowerCase();
+      return (
+        (userRow.email?.toLowerCase().includes(q) ?? false) ||
+        userRow.user_id.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  }).sort((a, b) => {
+    const tA = new Date(a.registered_at).getTime();
+    const tB = new Date(b.registered_at).getTime();
+    return userSortByDate === "desc" ? tB - tA : tA - tB;
+  });
+
+  const exportUsersCSV = () => {
+    const headers = ["User ID", "Email", "Department", "Role", "Region", "Registered At"];
+    const rows = filteredUsers.map((u) => [
+      u.user_id,
+      u.email || "",
+      u.dept,
+      u.role,
+      u.region,
+      u.registered_at
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,\ufeff"
+      + [headers.join(","), ...rows.map(r => r.map(val => `"${val}"`).join(","))].join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `umx_users_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportUsersJSON = () => {
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(filteredUsers, null, 2)
+    )}`;
+    const link = document.createElement("a");
+    link.setAttribute("href", jsonString);
+    link.setAttribute("download", `umx_users_export_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleUserSave = (updated: UserViewRow) => {
+    setUsersData((prev) =>
+      prev.map((u) => (u.user_id === updated.user_id ? updated : u))
+    );
+  };
+
   /* Mock Data Generator Helper */
   const generateMockData = async () => {
     setGenerating(true);
@@ -1129,207 +1464,386 @@ function AdminContent() {
       </header>
 
       <div className="px-8 py-8">
-        {/* Title */}
-        <div className="mb-6 flex items-baseline gap-3">
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--umx-acid)]">§01</span>
-          <h2 className="m-0 font-display text-xl font-bold uppercase tracking-[0.14em] text-[var(--umx-white)]">
-            FEEDBACK MANAGEMENT
-          </h2>
+        {/* Navigation Tabs */}
+        <div className="mb-8 flex border-b border-[var(--umx-line)]">
+          <button
+            onClick={() => setActiveTab("feedback")}
+            className={`relative pb-4 pr-8 font-display text-xs font-bold uppercase tracking-[0.2em] transition-colors ${
+              activeTab === "feedback" ? "text-white" : "text-[var(--umx-text-dim)] hover:text-white"
+            }`}
+          >
+            <span>FEEDBACK MANAGEMENT</span>
+            {activeTab === "feedback" && (
+              <motion.div
+                layoutId="activeTabUnderline"
+                className="absolute bottom-[-1px] left-0 h-[2px] bg-[var(--umx-acid)]"
+                style={{ width: "calc(100% - 32px)" }}
+              />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`relative pb-4 pr-8 font-display text-xs font-bold uppercase tracking-[0.2em] transition-colors ${
+              activeTab === "users" ? "text-white" : "text-[var(--umx-text-dim)] hover:text-white"
+            }`}
+          >
+            <span>USER PROFILE MANAGEMENT</span>
+            {activeTab === "users" && (
+              <motion.div
+                layoutId="activeTabUnderline"
+                className="absolute bottom-[-1px] left-0 h-[2px] bg-[var(--umx-acid)]"
+                style={{ width: "calc(100% - 32px)" }}
+              />
+            )}
+          </button>
         </div>
 
-        {/* Developer Tools Drawer */}
-        <AnimatePresence>
-          {devOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden mb-6 border border-dashed border-[var(--umx-acid)]/30 bg-black/40 p-4"
-              style={{ borderRadius: "2px" }}
-            >
-              <div className="flex items-center justify-between font-mono text-[10px] mb-3">
-                <span className="text-[var(--umx-acid)] font-bold flex items-center gap-1.5">
-                  <Info className="size-3.5" />
-                  开发与调试辅助工具面板
-                </span>
-                <span className="text-[var(--umx-text-dim)]">用于快速加载 UMX 品牌高拟真反馈数据</span>
+        {activeTab === "feedback" ? (
+          <>
+            {/* Developer Tools Drawer */}
+            <AnimatePresence>
+              {devOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden mb-6 border border-dashed border-[var(--umx-acid)]/30 bg-black/40 p-4"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <div className="flex items-center justify-between font-mono text-[10px] mb-3">
+                    <span className="text-[var(--umx-acid)] font-bold flex items-center gap-1.5">
+                      <Info className="size-3.5" />
+                      开发与调试辅助工具面板
+                    </span>
+                    <span className="text-[var(--umx-text-dim)]">用于快速加载 UMX 品牌高拟真反馈数据</span>
+                  </div>
+                  <button
+                    onClick={generateMockData}
+                    disabled={generating}
+                    className="flex items-center gap-2 border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] font-mono text-[10px] px-4 py-2 uppercase tracking-widest font-bold transition-all disabled:opacity-50"
+                    style={{ borderRadius: "2px", cursor: generating ? "wait" : "pointer" }}
+                  >
+                    {generating ? "INSERTING..." : "一键导入 UMX 先锋产品调试反馈"}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Visual Charts Analytics */}
+            {!loading && <AnalyticsDashboard items={items} />}
+
+            {/* Stats */}
+            {!loading && <StatsBar items={items} />}
+
+            {/* Filters */}
+            <div className="mt-6 flex flex-wrap items-center gap-3 bg-[var(--umx-bg-1)] border border-[var(--umx-line)] p-4" style={{ borderRadius: "2px" }}>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)]" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜索内容或邮箱..."
+                  className="w-56 border border-[var(--umx-line)] bg-[var(--umx-bg-2)] py-2 pl-9 pr-3 font-body text-xs text-[var(--umx-white)] outline-none transition-colors placeholder:text-[var(--umx-text-dim)] focus:border-[var(--umx-acid)]"
+                  style={{ borderRadius: "2px" }}
+                />
               </div>
-              <button
-                onClick={generateMockData}
-                disabled={generating}
-                className="flex items-center gap-2 border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] font-mono text-[10px] px-4 py-2 uppercase tracking-widest font-bold transition-all disabled:opacity-50"
-                style={{ borderRadius: "2px", cursor: generating ? "wait" : "pointer" }}
+
+              {/* Type filter */}
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as FilterType)}
+                className="appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
+                style={{ borderRadius: "2px" }}
               >
-                {generating ? "INSERTING..." : "一键导入 UMX 先锋产品调试反馈"}
+                <option value="all">ALL TYPES</option>
+                <option value="bug">BUG</option>
+                <option value="feature">FEATURE</option>
+              </select>
+
+              {/* Status filter */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+                className="appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
+                style={{ borderRadius: "2px" }}
+              >
+                <option value="all">ALL STATUS</option>
+                {STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+
+              {/* Sort By Date */}
+              <button
+                onClick={() => setSortByDate(prev => prev === "desc" ? "asc" : "desc")}
+                className="flex items-center gap-1.5 border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-white hover:border-white transition-colors"
+                style={{ borderRadius: "2px" }}
+              >
+                <Clock className="size-3" />
+                SORT: {sortByDate === "desc" ? "LATEST" : "OLDEST"}
               </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Visual Charts Analytics */}
-        {!loading && <AnalyticsDashboard items={items} />}
+              {/* Filter: attachments */}
+              <button
+                onClick={() => setFilterHasAttachments(!filterHasAttachments)}
+                className={`flex items-center gap-1.5 px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
+                  filterHasAttachments
+                    ? "border-[var(--umx-acid)] text-[var(--umx-acid)] bg-[var(--umx-acid)]/5"
+                    : "border-[var(--umx-line)] bg-[var(--umx-bg-2)] text-[var(--umx-text-dim)] hover:text-white"
+                }`}
+                style={{ borderRadius: "2px" }}
+              >
+                <Paperclip className="size-3" />
+                HAS ATTACHMENTS
+              </button>
 
-        {/* Stats */}
-        {!loading && <StatsBar items={items} />}
+              {/* Filter: admin notes */}
+              <button
+                onClick={() => setFilterHasNotes(!filterHasNotes)}
+                className={`flex items-center gap-1.5 px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
+                  filterHasNotes
+                    ? "border-[var(--umx-acid)] text-[var(--umx-acid)] bg-[var(--umx-acid)]/5"
+                    : "border-[var(--umx-line)] bg-[var(--umx-bg-2)] text-[var(--umx-text-dim)] hover:text-white"
+                }`}
+                style={{ borderRadius: "2px" }}
+              >
+                <MessageSquare className="size-3" />
+                HAS ADMIN NOTES
+              </button>
 
-        {/* Filters */}
-        <div className="mt-6 flex flex-wrap items-center gap-3 bg-[var(--umx-bg-1)] border border-[var(--umx-line)] p-4" style={{ borderRadius: "2px" }}>
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)]" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索内容或邮箱..."
-              className="w-56 border border-[var(--umx-line)] bg-[var(--umx-bg-2)] py-2 pl-9 pr-3 font-body text-xs text-[var(--umx-white)] outline-none transition-colors placeholder:text-[var(--umx-text-dim)] focus:border-[var(--umx-acid)]"
-              style={{ borderRadius: "2px" }}
-            />
-          </div>
-
-          {/* Type filter */}
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as FilterType)}
-            className="appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
-            style={{ borderRadius: "2px" }}
-          >
-            <option value="all">ALL TYPES</option>
-            <option value="bug">BUG</option>
-            <option value="feature">FEATURE</option>
-          </select>
-
-          {/* Status filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
-            className="appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
-            style={{ borderRadius: "2px" }}
-          >
-            <option value="all">ALL STATUS</option>
-            {STATUSES.map((s) => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
-
-          {/* Sort By Date */}
-          <button
-            onClick={() => setSortByDate(prev => prev === "desc" ? "asc" : "desc")}
-            className="flex items-center gap-1.5 border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-white hover:border-white transition-colors"
-            style={{ borderRadius: "2px" }}
-          >
-            <Clock className="size-3" />
-            SORT: {sortByDate === "desc" ? "LATEST" : "OLDEST"}
-          </button>
-
-          {/* Filter: attachments */}
-          <button
-            onClick={() => setFilterHasAttachments(!filterHasAttachments)}
-            className={`flex items-center gap-1.5 px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
-              filterHasAttachments
-                ? "border-[var(--umx-acid)] text-[var(--umx-acid)] bg-[var(--umx-acid)]/5"
-                : "border-[var(--umx-line)] bg-[var(--umx-bg-2)] text-[var(--umx-text-dim)] hover:text-white"
-            }`}
-            style={{ borderRadius: "2px" }}
-          >
-            <Paperclip className="size-3" />
-            HAS ATTACHMENTS
-          </button>
-
-          {/* Filter: admin notes */}
-          <button
-            onClick={() => setFilterHasNotes(!filterHasNotes)}
-            className={`flex items-center gap-1.5 px-3 py-2 border font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
-              filterHasNotes
-                ? "border-[var(--umx-acid)] text-[var(--umx-acid)] bg-[var(--umx-acid)]/5"
-                : "border-[var(--umx-line)] bg-[var(--umx-bg-2)] text-[var(--umx-text-dim)] hover:text-white"
-            }`}
-            style={{ borderRadius: "2px" }}
-          >
-            <MessageSquare className="size-3" />
-            HAS ADMIN NOTES
-          </button>
-
-          {/* Exporter Buttons */}
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={exportCSV}
-              className="flex items-center gap-1 border border-[var(--umx-line)] hover:border-white px-2.5 py-2 font-mono text-[9px] tracking-wider text-[var(--umx-silver)] uppercase transition-colors"
-              style={{ borderRadius: "2px" }}
-            >
-              <DownloadCloud className="size-3" />
-              CSV
-            </button>
-            <button
-              onClick={exportJSON}
-              className="flex items-center gap-1 border border-[var(--umx-line)] hover:border-white px-2.5 py-2 font-mono text-[9px] tracking-wider text-[var(--umx-silver)] uppercase transition-colors"
-              style={{ borderRadius: "2px" }}
-            >
-              <FileJson className="size-3" />
-              JSON
-            </button>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="mt-6 overflow-x-auto border border-[var(--umx-line)]" style={{ borderRadius: "2px" }}>
-          {loading ? (
-            <div className="flex justify-center py-20">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
-                LOADING FEEDBACK RECORDS...
-              </span>
+              {/* Exporter Buttons */}
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={exportCSV}
+                  className="flex items-center gap-1 border border-[var(--umx-line)] hover:border-white px-2.5 py-2 font-mono text-[9px] tracking-wider text-[var(--umx-silver)] uppercase transition-colors"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <DownloadCloud className="size-3" />
+                  CSV
+                </button>
+                <button
+                  onClick={exportJSON}
+                  className="flex items-center gap-1 border border-[var(--umx-line)] hover:border-white px-2.5 py-2 font-mono text-[9px] tracking-wider text-[var(--umx-silver)] uppercase transition-colors"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <FileJson className="size-3" />
+                  JSON
+                </button>
+              </div>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Search className="mb-3 size-8 text-[var(--umx-text-dim)]" />
-              <p className="font-mono text-[11px] text-[var(--umx-text-dim)]">
-                没有匹配的反馈记录
-              </p>
+
+            {/* Table */}
+            <div className="mt-6 overflow-x-auto border border-[var(--umx-line)]" style={{ borderRadius: "2px" }}>
+              {loading ? (
+                <div className="flex justify-center py-20">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
+                    LOADING FEEDBACK RECORDS...
+                  </span>
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Search className="mb-3 size-8 text-[var(--umx-text-dim)]" />
+                  <p className="font-mono text-[11px] text-[var(--umx-text-dim)]">
+                    没有匹配的反馈记录
+                  </p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--umx-line)] bg-[var(--umx-bg-1)] select-none">
+                      {/* Select All Checkbox */}
+                      <th className="w-10 px-4 py-3 text-left font-mono">
+                        <button
+                          onClick={toggleSelectAll}
+                          className="flex size-5 items-center justify-center text-[var(--umx-text-dim)] hover:text-white transition-colors"
+                        >
+                          {selectedIds.length === filtered.length && filtered.length > 0 ? (
+                            <CheckSquare className="size-4 text-[var(--umx-acid)]" />
+                          ) : (
+                            <Square className="size-4 opacity-50" />
+                          )}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">TYPE</th>
+                      <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">USER</th>
+                      <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">CONTENT</th>
+                      <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">STATUS</th>
+                      <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">NOTE</th>
+                      <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">DATE</th>
+                      <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <AnimatePresence>
+                      {filtered.map((item) => (
+                        <FeedbackTableRow
+                          key={item.id}
+                          item={item}
+                          isSelected={selectedIds.includes(item.id)}
+                          onSelectToggle={handleSelectToggle}
+                          onStatusChange={handleStatusChange}
+                          onDelete={handleDelete}
+                          onRowClick={setSelectedItem}
+                          onNoteSave={handleNoteSave}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </tbody>
+                </table>
+              )}
             </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[var(--umx-line)] bg-[var(--umx-bg-1)] select-none">
-                  {/* Select All Checkbox */}
-                  <th className="w-10 px-4 py-3 text-left font-mono">
-                    <button
-                      onClick={toggleSelectAll}
-                      className="flex size-5 items-center justify-center text-[var(--umx-text-dim)] hover:text-white transition-colors"
-                    >
-                      {selectedIds.length === filtered.length && filtered.length > 0 ? (
-                        <CheckSquare className="size-4 text-[var(--umx-acid)]" />
-                      ) : (
-                        <Square className="size-4 opacity-50" />
-                      )}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">TYPE</th>
-                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">USER</th>
-                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">CONTENT</th>
-                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">STATUS</th>
-                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">NOTE</th>
-                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">DATE</th>
-                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <AnimatePresence>
-                  {filtered.map((item) => (
-                    <FeedbackTableRow
-                      key={item.id}
-                      item={item}
-                      isSelected={selectedIds.includes(item.id)}
-                      onSelectToggle={handleSelectToggle}
-                      onStatusChange={handleStatusChange}
-                      onDelete={handleDelete}
-                      onRowClick={setSelectedItem}
-                      onNoteSave={handleNoteSave}
-                    />
-                  ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            {/* User Visual Stats */}
+            {!userLoading && <UserStatsDashboard items={usersData} />}
+
+            {/* User Filters */}
+            <div className="mt-6 flex flex-wrap items-center gap-3 bg-[var(--umx-bg-1)] border border-[var(--umx-line)] p-4" style={{ borderRadius: "2px" }}>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)]" />
+                <input
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  placeholder="搜索用户邮箱或 ID..."
+                  className="w-56 border border-[var(--umx-line)] bg-[var(--umx-bg-2)] py-2 pl-9 pr-3 font-body text-xs text-[var(--umx-white)] outline-none transition-colors placeholder:text-[var(--umx-text-dim)] focus:border-[var(--umx-acid)]"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+
+              {/* Department filter */}
+              <select
+                value={userFilterDept}
+                onChange={(e) => setUserFilterDept(e.target.value)}
+                className="appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
+                style={{ borderRadius: "2px" }}
+              >
+                <option value="all">ALL DEPARTMENTS</option>
+                {DEPTS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+
+              {/* Role filter */}
+              <select
+                value={userFilterRole}
+                onChange={(e) => setUserFilterRole(e.target.value)}
+                className="appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
+                style={{ borderRadius: "2px" }}
+              >
+                <option value="all">ALL ROLES</option>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+
+              {/* Sort By Date */}
+              <button
+                onClick={() => setUserSortByDate(prev => prev === "desc" ? "asc" : "desc")}
+                className="flex items-center gap-1.5 border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-white hover:border-white transition-colors"
+                style={{ borderRadius: "2px" }}
+              >
+                <Clock className="size-3" />
+                SORT: {userSortByDate === "desc" ? "LATEST REGISTERED" : "OLDEST REGISTERED"}
+              </button>
+
+              {/* Exporter Buttons */}
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={exportUsersCSV}
+                  className="flex items-center gap-1 border border-[var(--umx-line)] hover:border-white px-2.5 py-2 font-mono text-[9px] tracking-wider text-[var(--umx-silver)] uppercase transition-colors"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <DownloadCloud className="size-3" />
+                  CSV
+                </button>
+                <button
+                  onClick={exportUsersJSON}
+                  className="flex items-center gap-1 border border-[var(--umx-line)] hover:border-white px-2.5 py-2 font-mono text-[9px] tracking-wider text-[var(--umx-silver)] uppercase transition-colors"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <FileJson className="size-3" />
+                  JSON
+                </button>
+              </div>
+            </div>
+
+            {/* Users Table */}
+            <div className="mt-6 overflow-x-auto border border-[var(--umx-line)]" style={{ borderRadius: "2px" }}>
+              {userLoading ? (
+                <div className="flex justify-center py-20">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
+                    LOADING USER RECORDS...
+                  </span>
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Search className="mb-3 size-8 text-[var(--umx-text-dim)]" />
+                  <p className="font-mono text-[11px] text-[var(--umx-text-dim)]">
+                    没有匹配的用户记录
+                  </p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--umx-line)] bg-[var(--umx-bg-1)] select-none">
+                      <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">EMAIL ADDRESS</th>
+                      <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">USER ID</th>
+                      <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">DEPARTMENT</th>
+                      <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">ROLE</th>
+                      <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">REGION</th>
+                      <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">REGISTERED DATE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <AnimatePresence>
+                      {filteredUsers.map((userRow) => (
+                        <motion.tr
+                          key={userRow.user_id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          onClick={() => setSelectedUser(userRow)}
+                          className="border-b border-[var(--umx-line)] transition-colors hover:bg-[rgba(255,255,255,0.02)] cursor-pointer"
+                        >
+                          <td className="px-6 py-4 font-mono text-[11px] text-white font-bold select-all">
+                            {userRow.email || "Anonymous"}
+                          </td>
+                          <td className="px-6 py-4 font-mono text-[10px] text-[var(--umx-text-dim)] select-all">
+                            {userRow.user_id}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider border border-[var(--umx-line)] text-white" style={{ background: "rgba(255,255,255,0.02)", borderRadius: "2px" }}>
+                              <Building className="size-2.5 text-[var(--umx-silver)]" />
+                              {userRow.dept || "未分配"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider border text-[var(--umx-acid)]" style={{ background: "rgba(218,252,8,0.03)", borderColor: "rgba(218,252,8,0.2)", borderRadius: "2px" }}>
+                              <UserCheck className="size-2.5 text-[var(--umx-acid)]" />
+                              {userRow.role || "普通用户"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider border text-[#7201FF]" style={{ background: "rgba(114,1,255,0.03)", borderColor: "rgba(114,1,255,0.2)", borderRadius: "2px" }}>
+                              <MapPin className="size-2.5 text-[#7201FF]" />
+                              {userRow.region || "未分配"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-mono text-[10px] text-[var(--umx-text-dim)]">
+                            {formatDate(userRow.registered_at)}
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Slide-over Detail Drawer Panel */}
@@ -1344,9 +1858,20 @@ function AdminContent() {
         )}
       </AnimatePresence>
 
+      {/* Slide-over User Profile Edit Drawer Panel */}
+      <AnimatePresence>
+        {selectedUser && (
+          <UserEditDrawer
+            item={selectedUser}
+            onClose={() => setSelectedUser(null)}
+            onSave={handleUserSave}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Floating Bulk Action Deck */}
       <AnimatePresence>
-        {selectedIds.length > 0 && (
+        {selectedIds.length > 0 && activeTab === "feedback" && (
           <motion.div
             initial={{ y: 50, opacity: 0, x: "-50%" }}
             animate={{ y: 0, opacity: 1, x: "-50%" }}
