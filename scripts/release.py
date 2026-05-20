@@ -44,18 +44,18 @@ ENV_PATH = REPO_ROOT / ".env"
 
 # Conventional Commit prefix → CHANGELOG 中文分类
 CATEGORY_MAP: dict[str, str] = {
-    "feat": "✨ 新功能",
-    "fix": "🐛 修复",
-    "perf": "⚡️ 性能",
-    "refactor": "♻️ 重构",
-    "security": "🔒 安全",
-    "docs": "📝 文档",
-    "test": "✅ 测试",
-    "build": "📦 构建",
-    "ci": "🤖 CI",
-    "style": "💄 样式",
-    "chore": "🔧 杂项",
-    "merge": "🔀 合并",
+    "feat": "FEATURE / ✨ 新功能",
+    "fix": "BUGFIX / 🐛 修复",
+    "perf": "PERFORMANCE / ⚡️ 性能",
+    "refactor": "REFACTOR / ♻️ 重构",
+    "security": "SECURITY / 🔒 安全",
+    "docs": "DOCUMENTATION / 📝 文档",
+    "test": "TEST / ✅ 测试",
+    "build": "BUILD / 📦 构建",
+    "ci": "CI / 🤖 CI",
+    "style": "STYLE / 💄 样式",
+    "chore": "CHORE / 🔧 杂项",
+    "merge": "MERGE / 🔀 合并",
 }
 
 # 渲染顺序（用户最关心的在前）
@@ -176,7 +176,10 @@ def build_section(
     version: str,
     grouped: dict[str, list[tuple[str, str]]],
 ) -> str:
-    lines = [f"## {version} — {date.today().isoformat()}", ""]
+    formatted_version = version.upper()
+    if not formatted_version.startswith("V"):
+        formatted_version = "V" + formatted_version
+    lines = [f"## {formatted_version} / {date.today().isoformat()}", ""]
     for category in CATEGORY_ORDER:
         items = grouped.get(category)
         if not items:
@@ -191,7 +194,7 @@ def build_section(
 
 def prepend_changelog(new_section: str) -> None:
     # 只保留一个干净的 H1 标题；不写任何"使用说明"类的元信息，那些放在 README/skill 里
-    seed = "# 更新日志\n\n"
+    seed = "# CHANGELOG / 更新日志\n\n"
     existing = CHANGELOG_PATH.read_text(encoding="utf-8") if CHANGELOG_PATH.exists() else seed
     head, sep, tail = existing.partition("\n## ")
     if sep:
