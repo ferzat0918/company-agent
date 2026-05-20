@@ -48,13 +48,13 @@
 #     [OK] docker compose ps      (read-only status check)
 # ====================================================================
 
-# -- Configuration ----------------------------------------------------
-$REPO_URL = "https://github.com/ferzat0918/company-agent.git"
-$DEFAULT_PROJECT_NAME = "company-agent"
-
 param(
     [string]$ProjectRoot = ""
 )
+
+# -- Configuration ----------------------------------------------------
+$REPO_URL = "https://github.com/ferzat0918/company-agent.git"
+$DEFAULT_PROJECT_NAME = "company-agent"
 
 # -- Helpers ----------------------------------------------------------
 function Write-Step  { param([string]$msg) Write-Host "`n==> $msg" -ForegroundColor Cyan }
