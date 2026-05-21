@@ -2,12 +2,20 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import dynamic from "next/dynamic";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { UmxSymbol, UmxWordmark } from "@/components/icons/umx-logo";
 import { LoginPage } from "@/components/LoginPage";
 import { NavLinks } from "@/components/nav-links";
+
+const ChangelogRenderer = dynamic(() => import("@/components/ChangelogRenderer"), {
+  ssr: false,
+  loading: () => (
+    <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">
+      GENERATING LOGS...
+    </p>
+  ),
+});
 
 function UmxLoadingScreen() {
   return (
@@ -80,9 +88,7 @@ function ChangelogContent() {
         )}
 
         {content !== null && (
-          <article className="umx-changelog">
-            <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
-          </article>
+          <ChangelogRenderer content={content} />
         )}
       </div>
 

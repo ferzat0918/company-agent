@@ -2,6 +2,9 @@
 :: UMX Space Hardware System - One-click Deploy Launcher
 :: [ Zero-Configuration | Pure ASCII | Cold Structure ]
 
+:: Force UTF-8 terminal code page to prevent garbled Chinese characters on Windows
+chcp 65001 >nul
+
 echo ============================================================
 echo           UMX SPACE HARDWARE SYSTEM - DEPLOY LAUNCHER
 echo          [ Cold Structure & Emotional Light Field ]
