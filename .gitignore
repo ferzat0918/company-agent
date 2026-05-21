@@ -23,6 +23,7 @@ build/
 # Ignore frontend build out directory and local node environment
 frontend/agent-chat-ui/out/
 .node_env/
+.python_env/
 
 # ─── Editor ─────────────────────────────────────────────────────
 .vscode/
