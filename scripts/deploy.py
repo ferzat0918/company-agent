@@ -344,7 +344,7 @@ def main():
     test_success = run_command(test_cmd, cwd=infra_dir)
     
     if test_success:
-        log_success("💎 36项系统核心功能质检单元测试 100% 成功通过！部署完美完成！")
+        log_success("36项系统核心功能质检单元测试 100% 成功通过！部署完美完成！")
     else:
         log_error("系统虽然拉起，但在容器内运行的部分 pytest 质检单元测试未通过，请检查测试报告。")
         sys.exit(1)
