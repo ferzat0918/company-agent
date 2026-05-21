@@ -296,7 +296,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: company-agent-cloudflared
-    restart: "no"
+    restart: unless-stopped
     entrypoint: ["cloudflared", "tunnel", "--no-autoupdate", "run"]
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARED_TOKEN:-}
