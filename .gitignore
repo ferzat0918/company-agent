@@ -20,16 +20,9 @@ dist/
 build/
 *.tsbuildinfo
 
-# Exception: ship the frontend's prebuilt static export so deployers
-# without Node.js can `git clone` and run `docker compose up` directly.
-!frontend/agent-chat-ui/out/
-!frontend/agent-chat-ui/out/**
-
-# But re-ignore the skills folder inside out/. It's a build-time copy of
-# the repo's top-level /skills/ (via a symlink in public/), so committing
-# it would duplicate ~90MB. At runtime nginx serves /skills/ from a
-# separate docker mount, so out/skills/ is never read.
-frontend/agent-chat-ui/out/skills/
+# Ignore frontend build out directory and local node environment
+frontend/agent-chat-ui/out/
+.node_env/
 
 # ─── Editor ─────────────────────────────────────────────────────
 .vscode/
