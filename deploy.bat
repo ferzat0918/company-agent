@@ -7,16 +7,32 @@ echo           UMX SPACE HARDWARE SYSTEM - DEPLOY LAUNCHER
 echo ============================================================
 echo.
 
-where python >nul 2>nul
-if errorlevel 1 goto NOPYTHON
+:: Test if python command is functional and not a broken stub
+python --version >nul 2>nul
+if %errorlevel% equ 0 goto RUN_PYTHON
 
+:: Test if python3 command is functional
+python3 --version >nul 2>nul
+if %errorlevel% equ 0 goto RUN_PYTHON3
+
+goto NOPYTHON
+
+:RUN_PYTHON
 python "%~dp0scripts\deploy.py"
+if errorlevel 1 goto DEPLOYFAIL
+exit /b 0
+
+:RUN_PYTHON3
+python3 "%~dp0scripts\deploy.py"
 if errorlevel 1 goto DEPLOYFAIL
 exit /b 0
 
 :NOPYTHON
 echo [ERROR] Python was not found in your system PATH!
-echo Please install Python 3 and check "Add python.exe to PATH" first.
+echo.
+echo Please make sure you have:
+echo 1. Installed Python 3 (from python.org) on the host machine.
+echo 2. Checked "Add python.exe to PATH" during the installation.
 echo.
 pause
 exit /b 1
