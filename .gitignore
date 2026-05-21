@@ -51,3 +51,8 @@ log.md
 *.pem
 *.key
 secrets/
+
+# ─── Agent Workspace ────────────────────────────────────────────
+workspace/*
+!workspace/.gitkeep
+

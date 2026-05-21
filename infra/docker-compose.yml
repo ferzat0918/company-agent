@@ -207,10 +207,22 @@ services:
       # editable install can refresh egg-info on package additions.
       - ${HOST_PROJECT_DIR:-..}/backend/src:/app/backend/src
       - ${HOST_PROJECT_DIR:-..}/backend/tests:/app/backend/tests
+      - ${HOST_PROJECT_DIR:-..}/workspace:/app/workspace
       - langgraph-data:/app/.langgraph_api
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
         condition: service_healthy
+
+  sandbox:
+    build:
+      context: ../
+      dockerfile: infra/Dockerfile.sandbox
+    container_name: company-agent-sandbox
+    restart: unless-stopped
+    volumes:
+      - ${HOST_PROJECT_DIR:-..}/workspace:/workspace
+    working_dir: /workspace
 
   storage:
     image: supabase/storage-api:v1.48.26

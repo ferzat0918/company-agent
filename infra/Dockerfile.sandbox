@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+# Set timezone and working directory
+ENV TZ=Asia/Shanghai
+WORKDIR /workspace
+
+# Install system dependencies if any are needed for libraries (e.g. gcc, git, build-essential for some pip packages)
+# python:3.11-slim is minimal, so we pre-install key pacakges
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install common data parsing, science, and report generation libraries
+RUN pip install --no-cache-dir \
+    pandas \
+    openpyxl \
+    python-docx \
+    pdfplumber \
+    matplotlib \
+    requests \
+    jinja2 \
+    pypdf \
+    openpyxl
+
+# Set the command to keep the container running indefinitely
+CMD ["tail", "-f", "/dev/null"]

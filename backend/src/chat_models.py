@@ -12,6 +12,7 @@ into plain text context before calling the text-only DeepSeek API.
 """
 import base64
 import io
+import os
 from collections.abc import Sequence
 from typing import Any
 
@@ -127,6 +128,17 @@ def _process_content_list(content_list: list) -> list:
                 if data_base64:
                     try:
                         file_bytes = base64.b64decode(data_base64)
+                        # Save file to workspace so the Docker python sandbox can access it
+                        try:
+                            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+                            workspace_dir = os.path.join(project_root, "workspace")
+                            os.makedirs(workspace_dir, exist_ok=True)
+                            dest_filepath = os.path.join(workspace_dir, filename)
+                            with open(dest_filepath, "wb") as wf:
+                                wf.write(file_bytes)
+                            print(f"[Workspace] Auto-saved uploaded file to: {dest_filepath}")
+                        except Exception as save_err:
+                            print(f"[Workspace] Failed to auto-save file {filename}: {str(save_err)}")
                     except Exception as e:
                         new_content.append({
                             "type": "text",

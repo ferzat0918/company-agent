@@ -21,24 +21,26 @@ from .config import (
 from .memory.prompt_inject import MemoryInjectMiddleware
 from .memory.tool import make_memory_tool, make_memory_undo_tool
 from .skills_loader import get_skills_config, validate_skills
+from .sandbox import sandbox_tool
 
 # ─── Prompt loader ──────────────────────────────────────────────
 PROMPTS_DIR = os.getenv("PROMPTS_DIR", "prompts")
 
-# Safety suffix appended to every agent prompt (supervisor + subagents).
-# This hard constraint prevents the LLM from calling filesystem-write tools.
-_NO_WRITE_SUFFIX = (
-    "\n\n你**没有**任何文件写入或编辑能力。"
-    "**绝对不要**调用 write_file / edit_file 工具，它们会被拒绝。"
-    "如需保留产出，请直接在回答正文中输出文本，用户会自己复制保存。"
+# Suffix appended to subagent prompts explaining the safe python execution sandbox
+_SANDBOX_SUFFIX = (
+    "\n\n【文件与数据处理安全沙盒说明】\n"
+    "1. 你可以通过调用 `execute_python_in_sandbox` 工具，在安全的 Docker Python 沙盒环境中编写和运行 Python 代码来处理、分析、编辑或生成文件。\n"
+    "2. 用户上传的文件已自动保存在 `/workspace/<文件名>`。你在编写 Python 代码时，可以直接在当前目录下读取这些文件（沙盒工作目录为 `/workspace`）。\n"
+    "3. 你在沙盒中生成的任何新文件或修改后的文件，请直接保存在 `/workspace` 当前目录下，它们会同步保存到用户的本地工作区，供用户下载。\n"
+    "4. 请注意：你自身**没有**直接在宿主机写入或编辑文件的能力（直接调用 write_file / edit_file 等底层工具会被安全权限拦截），因此所有文件生成、编辑、转换和复杂数据解析都**必须**通过在 `execute_python_in_sandbox` 中编写 Python 代码来完成。"
 )
 
-# Extra constraint for the supervisor: also block reads outside /skills.
-_SUPERVISOR_SUFFIX = (
-    "\n\n你**没有**任何文件写入或编辑能力，也无法读取 /skills 以外的任何路径。"
-    "**绝对不要**调用 write_file / edit_file / ls / read_file"
-    "（除非读 /skills 下面的文件）。"
-    "直接通过 task 工具把用户问题分发给对应的 SubAgent 即可。"
+# Supervisor prompt suffix
+_SUPERVISOR_SANDBOX_SUFFIX = (
+    "\n\n【文件与数据处理安全沙盒说明】\n"
+    "1. 用户的全部文件操作和数据分析均需通过调用 `execute_python_in_sandbox` 工具或分发给各部门 SubAgent 完成。\n"
+    "2. 你可以直接调用 `execute_python_in_sandbox`，也可以通过 task 工具将任务派发给相应的子 Agent（子 Agent 也拥有完整的沙盒执行能力）。\n"
+    "3. 任何需要读取、生成或修改文件的任务，都**必须**在 `execute_python_in_sandbox` 沙盒环境中运行 Python 代码处理（代码工作目录为 `/workspace`）。直接的 write_file / edit_file 依然是被禁止的。"
 )
 
 
@@ -159,7 +161,7 @@ _memory_undo_tool = make_memory_undo_tool(
 # ─── Web search tool (Tavily) ───────────────────────────────────
 # Inherited by every SubAgent because none of them declare their own
 # `tools` field — see deepagents/graph.py:575 (inherit-from-parent logic).
-_agent_tools: list = [_memory_tool, _memory_undo_tool]
+_agent_tools: list = [_memory_tool, _memory_undo_tool, sandbox_tool]
 if TAVILY_API_KEY:
     # Imported lazily so the package is only required when the key is set.
     from langchain_tavily import TavilySearch
@@ -202,28 +204,28 @@ SUBAGENTS = [
     {
         "name": "marketing-agent",
         "description": "处理市场推广、文案、EDM、活动策划相关任务",
-        "system_prompt": _marketing_prompt + _NO_WRITE_SUFFIX,
+        "system_prompt": _marketing_prompt + _SANDBOX_SUFFIX,
         "model": _llm,
         "skills": skills_dirs,
     },
     {
         "name": "hr-agent",
         "description": "处理人力资源相关咨询和事务，如请假流程、招聘、制度查询",
-        "system_prompt": _hr_prompt + _NO_WRITE_SUFFIX,
+        "system_prompt": _hr_prompt + _SANDBOX_SUFFIX,
         "model": _llm,
         "skills": skills_dirs,
     },
     {
         "name": "tob-agent",
         "description": "处理 B 端销售和客户相关任务，如方案书、报价、客户邮件",
-        "system_prompt": _tob_prompt + _NO_WRITE_SUFFIX,
+        "system_prompt": _tob_prompt + _SANDBOX_SUFFIX,
         "model": _llm,
         "skills": skills_dirs,
     },
     {
         "name": "content-agent",
         "description": "处理内容产出相关任务，如选题策划、脚本、平台规范",
-        "system_prompt": _content_prompt + _NO_WRITE_SUFFIX,
+        "system_prompt": _content_prompt + _SANDBOX_SUFFIX,
         "model": _llm,
         "skills": skills_dirs,
     },
@@ -234,7 +236,7 @@ agent = create_deep_agent(
     name="company-agent",
     model=_llm,
     tools=_agent_tools,
-    system_prompt=_supervisor_prompt + _SUPERVISOR_SUFFIX,
+    system_prompt=_supervisor_prompt + _SUPERVISOR_SANDBOX_SUFFIX,
     subagents=SUBAGENTS,
     skills=skills_dirs,
     backend=FilesystemBackend(root_dir=".", virtual_mode=True),

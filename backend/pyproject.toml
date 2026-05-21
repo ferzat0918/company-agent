@@ -16,6 +16,7 @@ dependencies = [
     "pyyaml",
     "pypdf",
     "openpyxl",
+    "docker",
 ]
 
 [project.optional-dependencies]
