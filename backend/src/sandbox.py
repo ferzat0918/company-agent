@@ -105,10 +105,13 @@ def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
         # 会自动从环境变量中读取 DAYTONA_API_KEY 和 DAYTONA_API_URL
         daytona = Daytona()
 
-        # 2. 定义预制镜像以避免每次运行临时下载库
         custom_image = (
             Image.debian_slim("3.11")
-            .pip_install(["pandas", "openpyxl", "python-docx", "pdfplumber", "matplotlib"])
+            .pip_install([
+                "pandas", "openpyxl", "python-docx", "pdfplumber", "matplotlib",
+                "requests", "httpx[socks]", "beautifulsoup4",
+                "tenacity", "pyyaml", "ruamel.yaml", "rich"
+            ])
             .workdir("/home/daytona")
         )
 
