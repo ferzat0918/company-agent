@@ -16,9 +16,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./init-kong-db.sql:/docker-entrypoint-initdb.d/10-init-kong-db.sql:ro
-      - ./init-feedback.sql:/docker-entrypoint-initdb.d/20-init-feedback.sql:ro
-      - ./init-profiles.sql:/docker-entrypoint-initdb.d/30-init-profiles.sql:ro
+      - ${HOST_INFRA_DIR:-.}/init-kong-db.sql:/docker-entrypoint-initdb.d/10-init-kong-db.sql:ro
+      - ${HOST_INFRA_DIR:-.}/init-feedback.sql:/docker-entrypoint-initdb.d/20-init-feedback.sql:ro
+      - ${HOST_INFRA_DIR:-.}/init-profiles.sql:/docker-entrypoint-initdb.d/30-init-profiles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -130,7 +130,7 @@ services:
       KONG_PG_PASSWORD: ${POSTGRES_PASSWORD}
       KONG_PG_DATABASE: kong
     volumes:
-      - ./kong.yml:/etc/kong/kong.yml:ro
+      - ${HOST_INFRA_DIR:-.}/kong.yml:/etc/kong/kong.yml:ro
     command: kong config db_import /etc/kong/kong.yml
     depends_on:
       postgres:
@@ -199,14 +199,14 @@ services:
       # :ro hardens the container — even if the agent's permission rules
       # are ever weakened, the kernel will still reject writes into these
       # mounts (which point back to the host's skills/ and prompts/).
-      - ../skills:/app/skills:ro
-      - ../prompts:/app/prompts:ro
+      - ${HOST_PROJECT_DIR:-..}/skills:/app/skills:ro
+      - ${HOST_PROJECT_DIR:-..}/prompts:/app/prompts:ro
       # Live-mount backend source for fast dev iteration. Without this,
       # every host-side code change needs a `docker compose build`
       # before pytest / runtime can see it.  src/ is writeable so pip's
       # editable install can refresh egg-info on package additions.
-      - ../backend/src:/app/backend/src
-      - ../backend/tests:/app/backend/tests
+      - ${HOST_PROJECT_DIR:-..}/backend/src:/app/backend/src
+      - ${HOST_PROJECT_DIR:-..}/backend/tests:/app/backend/tests
       - langgraph-data:/app/.langgraph_api
     depends_on:
       postgres:
@@ -271,9 +271,9 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ../frontend/agent-chat-ui/out:/usr/share/nginx/html:ro
-      - ../skills:/srv/skills:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${HOST_PROJECT_DIR:-..}/frontend/agent-chat-ui/out:/usr/share/nginx/html:ro
+      - ${HOST_PROJECT_DIR:-..}/skills:/srv/skills:ro
+      - ${HOST_INFRA_DIR:-.}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - langgraph
 
