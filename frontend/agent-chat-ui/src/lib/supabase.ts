@@ -6,6 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
   (typeof window !== "undefined" ? window.location.origin : "http://localhost");
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "dummy-key-for-build-time-static-prerender";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
