@@ -109,6 +109,97 @@ def extract_text_from_bytes(text_bytes: bytes) -> str:
             return f"(解析文本文件失败: {str(e)})"
 
 
+def _process_content_list(content_list: list) -> list:
+    """Helper to process file/image blocks inside a list content and convert to text."""
+    new_content = []
+    for block in content_list:
+        if isinstance(block, dict):
+            block_type = block.get("type")
+            if block_type == "file":
+                mime_type = block.get("mimeType")
+                filename = (
+                    block.get("metadata", {}).get("filename")
+                    or block.get("metadata", {}).get("name")
+                    or "document"
+                )
+                data_base64 = block.get("data")
+                
+                if data_base64:
+                    try:
+                        file_bytes = base64.b64decode(data_base64)
+                    except Exception as e:
+                        new_content.append({
+                            "type": "text",
+                            "text": f"\n[文件附件解码失败: {filename} ({str(e)})]\n"
+                        })
+                        continue
+
+                    # Route parsing based on MIME-type or file extension
+                    is_pdf = mime_type == "application/pdf" or filename.lower().endswith(".pdf")
+                    is_docx = (
+                        mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        or filename.lower().endswith(".docx")
+                    )
+                    is_xlsx = (
+                        mime_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        or filename.lower().endswith(".xlsx")
+                    )
+                    is_text = (
+                        mime_type in ["text/plain", "text/markdown", "text/csv", "application/json"]
+                        or filename.lower().endswith((".txt", ".md", ".csv", ".json", ".xml", ".ini", ".log"))
+                    )
+
+                    if is_pdf:
+                        extracted_text = extract_pdf_text_from_base64(data_base64)
+                        new_content.append({
+                            "type": "text",
+                            "text": f"\n[PDF文件附件: {filename} 的文本内容开始]\n{extracted_text}\n[PDF文件附件: {filename} 的文本内容结束]\n"
+                        })
+                    elif is_docx:
+                        extracted_text = extract_docx_text_from_bytes(file_bytes)
+                        new_content.append({
+                            "type": "text",
+                            "text": f"\n[Word文件附件: {filename} 的文本内容开始]\n{extracted_text}\n[Word文件附件: {filename} 的文本内容结束]\n"
+                        })
+                    elif is_xlsx:
+                        extracted_text = extract_xlsx_text_from_bytes(file_bytes)
+                        new_content.append({
+                            "type": "text",
+                            "text": f"\n[Excel表格附件: {filename} 的数据内容开始]\n{extracted_text}\n[Excel表格附件: {filename} 的数据内容结束]\n"
+                        })
+                    elif is_text:
+                        extracted_text = extract_text_from_bytes(file_bytes)
+                        new_content.append({
+                            "type": "text",
+                            "text": f"\n[文本文件附件: {filename} 的内容开始]\n{extracted_text}\n[文本文件附件: {filename} 的内容结束]\n"
+                        })
+                    else:
+                        new_content.append({
+                            "type": "text",
+                            "text": f"\n[文件附件: {filename} (类型: {mime_type}, 暂不支持自动提取内容)]\n"
+                        })
+                else:
+                    new_content.append({
+                        "type": "text",
+                        "text": f"\n[空文件附件: {filename}]\n"
+                    })
+            elif block_type == "image":
+                filename = (
+                    block.get("metadata", {}).get("name")
+                    or block.get("metadata", {}).get("filename")
+                    or "image.png"
+                )
+                new_content.append({
+                    "type": "text",
+                    "text": f"\n[图片附件: {filename} (当前使用的是纯文本模型 DeepSeek，无法直接视觉解析此图片，仅读取了文件名)]\n"
+                })
+            else:
+                new_content.append(block)
+        else:
+            new_content.append(block)
+    return new_content
+
+
 def preprocess_messages(input_: LanguageModelInput) -> LanguageModelInput:
     """Preprocess LangChain message inputs.
     
@@ -116,100 +207,21 @@ def preprocess_messages(input_: LanguageModelInput) -> LanguageModelInput:
     Word, Excel, or Text documents, and text-only unsupported 'image' blocks)
     into standard text blocks readable by DeepSeek.
     """
+    try:
+        with open("/tmp/preprocess_debug.txt", "a", encoding="utf-8") as f:
+            f.write(f"\n--- preprocess_messages called ---\n")
+            f.write(f"type(input_): {type(input_)}\n")
+            f.write(f"input_ representation: {repr(input_)[:2000]}\n")
+    except Exception as e:
+        pass
+
     if not isinstance(input_, Sequence) or isinstance(input_, str):
         return input_
         
     new_messages = []
     for msg in input_:
         if isinstance(msg, HumanMessage) and isinstance(msg.content, list):
-            new_content = []
-            for block in msg.content:
-                if isinstance(block, dict):
-                    block_type = block.get("type")
-                    if block_type == "file":
-                        mime_type = block.get("mimeType")
-                        filename = (
-                            block.get("metadata", {}).get("filename")
-                            or block.get("metadata", {}).get("name")
-                            or "document"
-                        )
-                        data_base64 = block.get("data")
-                        
-                        if data_base64:
-                            try:
-                                file_bytes = base64.b64decode(data_base64)
-                            except Exception as e:
-                                new_content.append({
-                                    "type": "text",
-                                    "text": f"\n[文件附件解码失败: {filename} ({str(e)})]\n"
-                                })
-                                continue
-
-                            # Route parsing based on MIME-type or file extension
-                            is_pdf = mime_type == "application/pdf" or filename.lower().endswith(".pdf")
-                            is_docx = (
-                                mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                or filename.lower().endswith(".docx")
-                            )
-                            is_xlsx = (
-                                mime_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                or filename.lower().endswith(".xlsx")
-                            )
-                            is_text = (
-                                mime_type in ["text/plain", "text/markdown", "text/csv", "application/json"]
-                                or filename.lower().endswith((".txt", ".md", ".csv", ".json", ".xml", ".ini", ".log"))
-                            )
-
-                            if is_pdf:
-                                extracted_text = extract_pdf_text_from_base64(data_base64)
-                                new_content.append({
-                                    "type": "text",
-                                    "text": f"\n[PDF文件附件: {filename} 的文本内容开始]\n{extracted_text}\n[PDF文件附件: {filename} 的文本内容结束]\n"
-                                })
-                            elif is_docx:
-                                extracted_text = extract_docx_text_from_bytes(file_bytes)
-                                new_content.append({
-                                    "type": "text",
-                                    "text": f"\n[Word文件附件: {filename} 的文本内容开始]\n{extracted_text}\n[Word文件附件: {filename} 的文本内容结束]\n"
-                                })
-                            elif is_xlsx:
-                                extracted_text = extract_xlsx_text_from_bytes(file_bytes)
-                                new_content.append({
-                                    "type": "text",
-                                    "text": f"\n[Excel表格附件: {filename} 的数据内容开始]\n{extracted_text}\n[Excel表格附件: {filename} 的数据内容结束]\n"
-                                })
-                            elif is_text:
-                                extracted_text = extract_text_from_bytes(file_bytes)
-                                new_content.append({
-                                    "type": "text",
-                                    "text": f"\n[文本文件附件: {filename} 的内容开始]\n{extracted_text}\n[文本文件附件: {filename} 的内容结束]\n"
-                                })
-                            else:
-                                new_content.append({
-                                    "type": "text",
-                                    "text": f"\n[文件附件: {filename} (类型: {mime_type}, 暂不支持自动提取内容)]\n"
-                                })
-                        else:
-                            new_content.append({
-                                "type": "text",
-                                "text": f"\n[空文件附件: {filename}]\n"
-                            })
-                    elif block_type == "image":
-                        filename = (
-                            block.get("metadata", {}).get("name")
-                            or block.get("metadata", {}).get("filename")
-                            or "image.png"
-                        )
-                        new_content.append({
-                            "type": "text",
-                            "text": f"\n[图片附件: {filename} (当前使用的是纯文本模型 DeepSeek，无法直接视觉解析此图片，仅读取了文件名)]\n"
-                        })
-                    else:
-                        new_content.append(block)
-                else:
-                    new_content.append(block)
-            
-            # Copy human message with parsed text content blocks
+            new_content = _process_content_list(msg.content)
             msg = HumanMessage(
                 content=new_content,
                 additional_kwargs=msg.additional_kwargs,
@@ -217,6 +229,28 @@ def preprocess_messages(input_: LanguageModelInput) -> LanguageModelInput:
                 id=msg.id,
                 name=msg.name
             )
+        elif isinstance(msg, dict) and (msg.get("type") == "human" or msg.get("role") in ("user", "human")) and isinstance(msg.get("content"), list):
+            new_content = _process_content_list(msg["content"])
+            msg = dict(msg)
+            msg["content"] = new_content
+        elif hasattr(msg, "type") and getattr(msg, "type") == "human" and isinstance(getattr(msg, "content", None), list):
+            new_content = _process_content_list(msg.content)
+            try:
+                msg = msg.__class__(
+                    content=new_content,
+                    additional_kwargs=msg.additional_kwargs,
+                    response_metadata=msg.response_metadata,
+                    id=msg.id,
+                    name=msg.name
+                )
+            except Exception:
+                msg = HumanMessage(
+                    content=new_content,
+                    additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                    response_metadata=getattr(msg, "response_metadata", {}),
+                    id=getattr(msg, "id", None),
+                    name=getattr(msg, "name", None)
+                )
         new_messages.append(msg)
     return new_messages
 
