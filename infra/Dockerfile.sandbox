@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install common data parsing, science, and report generation libraries
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
     pandas \
     openpyxl \
     python-docx \

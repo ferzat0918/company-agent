@@ -20,7 +20,7 @@ COPY prompts/ ./prompts/
 COPY infra/*.sql ./infra/
 
 # Pre-install Python deps at build time (langgraph dev will verify/reuse)
-RUN pip install --no-cache-dir -e "./backend[dev]"
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -e "./backend[dev]"
 
 # Create Docker-specific langgraph.json (extends root with checkpointer/store)
 RUN echo '{"python_version":"3.11","dependencies":["./backend"],"graphs":{"company_agent":"./backend/src/graph.py:app"},"auth":{"path":"./backend/src/auth.py:auth"},"checkpointer":{"backend":"custom","path":"./backend/src/store_setup.py:create_checkpointer"},"store":{"backend":"custom","path":"./backend/src/store_setup.py:create_store"}}' > /app/langgraph-docker.json
