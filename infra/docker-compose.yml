@@ -297,7 +297,13 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: company-agent-cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
+    command: >
+      sh -c "if [ -z \"$$TUNNEL_TOKEN\" ]; then
+               echo 'No CLOUDFLARED_TOKEN configured, tunnel is disabled.';
+               sleep infinity;
+             else
+               exec cloudflared tunnel --no-autoupdate run;
+             fi"
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARED_TOKEN:-}
     depends_on:
