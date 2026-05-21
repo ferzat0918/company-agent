@@ -31,8 +31,9 @@ _SANDBOX_SUFFIX = (
     "\n\n【文件与数据处理安全沙盒说明】\n"
     "1. 你可以通过调用 `execute_python_in_sandbox` 工具，在安全的 Docker Python 沙盒环境中编写和运行 Python 代码来处理、分析、编辑或生成文件。\n"
     "2. 用户上传的文件已自动保存在 `/workspace/<文件名>`。你在编写 Python 代码时，可以直接在当前目录下读取这些文件（沙盒工作目录为 `/workspace`）。\n"
-    "3. 你在沙盒中生成的任何新文件或修改后的文件，请直接保存在 `/workspace` 当前目录下，它们会同步保存到用户的本地工作区，供用户下载。\n"
-    "4. 请注意：你自身**没有**直接在宿主机写入或编辑文件的能力（直接调用 write_file / edit_file 等底层工具会被安全权限拦截），因此所有文件生成、编辑、转换和复杂数据解析都**必须**通过在 `execute_python_in_sandbox` 中编写 Python 代码来完成。"
+    "3. 你在沙盒中生成的任何新文件或修改后的文件，请直接保存在 `/workspace` 当前目录下，它们会同步保存到用户的本地工作区。\n"
+    "4. **重要：当你在沙盒中生成、转换或修改了任何文件后，你必须在回答中提供形如 `[点击下载 文件名](/workspace/文件名)` 的 markdown 格式下载链接（例如：`[点击下载 report.docx](/workspace/report.docx)`），以便用户在聊天界面直接点击下载。绝对不能漏掉该下载链接！**\n"
+    "5. 请注意：你自身**没有**直接在宿主机写入或编辑文件的能力（直接调用 write_file / edit_file 等底层工具会被安全权限拦截），因此所有文件生成、编辑、转换和复杂数据解析都**必须**通过在 `execute_python_in_sandbox` 中编写 Python 代码来完成。"
 )
 
 # Supervisor prompt suffix
@@ -40,7 +41,8 @@ _SUPERVISOR_SANDBOX_SUFFIX = (
     "\n\n【文件与数据处理安全沙盒说明】\n"
     "1. 用户的全部文件操作和数据分析均需通过调用 `execute_python_in_sandbox` 工具或分发给各部门 SubAgent 完成。\n"
     "2. 你可以直接调用 `execute_python_in_sandbox`，也可以通过 task 工具将任务派发给相应的子 Agent（子 Agent 也拥有完整的沙盒执行能力）。\n"
-    "3. 任何需要读取、生成或修改文件的任务，都**必须**在 `execute_python_in_sandbox` 沙盒环境中运行 Python 代码处理（代码工作目录为 `/workspace`）。直接的 write_file / edit_file 依然是被禁止的。"
+    "3. 任何需要读取、生成或修改文件的任务，都**必须**在 `execute_python_in_sandbox` 沙盒环境中运行 Python 代码处理（代码工作目录为 `/workspace`）。直接的 write_file / edit_file 依然是被禁止的。\n"
+    "4. **重要：当在沙盒中生成、转换或修改了任何文件后，你作为 Supervisor 汇总回答时，也必须确保在回答中包含形如 `[点击下载 文件名](/workspace/文件名)` 的 markdown 下载链接，以便用户在聊天界面能直接点击下载。**"
 )
 
 
