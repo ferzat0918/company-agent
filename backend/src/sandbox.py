@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
@@ -23,15 +24,82 @@ class SandboxExecutionInput(BaseModel):
         )
     )
 
+def _clean_old_files(workspace_parent_dir: str, max_days: int = 30) -> None:
+    """自动清理 workspace 目录中修改时间超过指定天数的文件和过期的 thread_id 文件夹，防止硬盘占满"""
+    try:
+        now = time.time()
+        cutoff = now - (max_days * 86400)
+        if not os.path.exists(workspace_parent_dir):
+            return
+            
+        import shutil
+        for item in os.listdir(workspace_parent_dir):
+            item_path = os.path.join(workspace_parent_dir, item)
+            # 排除隐藏文件
+            if item.startswith("."):
+                continue
+                
+            if os.path.isfile(item_path):
+                # 根目录下的残留文件，按时间清理
+                try:
+                    mtime = os.path.getmtime(item_path)
+                    if mtime < cutoff:
+                        os.remove(item_path)
+                        print(f"[Cleanup] Removed expired root file: {item} (older than {max_days} days)")
+                except Exception as file_err:
+                    print(f"[Cleanup] Failed to remove root file {item}: {str(file_err)}")
+            elif os.path.isdir(item_path):
+                # thread_id 隔离文件夹
+                try:
+                    # 获取该文件夹内所有文件
+                    all_files = []
+                    for root_dir, dirs, files in os.walk(item_path):
+                        for f in files:
+                            all_files.append(os.path.join(root_dir, f))
+                            
+                    if not all_files:
+                        # 空目录，直接以目录修改时间判定是否超时
+                        dir_mtime = os.path.getmtime(item_path)
+                        if dir_mtime < cutoff:
+                            shutil.rmtree(item_path)
+                            print(f"[Cleanup] Removed expired empty directory: {item}")
+                    else:
+                        # 检查目录下所有文件是否都已超时
+                        all_expired = True
+                        for f_path in all_files:
+                            try:
+                                if os.path.getmtime(f_path) >= cutoff:
+                                    all_expired = False
+                                    break
+                            except Exception:
+                                pass
+                        
+                        if all_expired:
+                            shutil.rmtree(item_path)
+                            print(f"[Cleanup] Removed expired directory and all its files: {item}")
+                except Exception as dir_err:
+                    print(f"[Cleanup] Failed to process directory {item}: {str(dir_err)}")
+    except Exception as err:
+        print(f"[Cleanup] Error scanning workspace: {str(err)}")
 def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
     """在隔离的 Daytona Cloud 沙盒环境中执行 Python 代码。"""
     try:
         # 获取宿主机上的项目 workspace 绝对路径
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        workspace_dir = os.path.join(project_root, WORKSPACE_DIR_NAME)
+        workspace_parent = os.path.join(project_root, WORKSPACE_DIR_NAME)
         
-        # 确保本地 workspace 目录存在
+        # 提取 thread_id 并做多线程隔离
+        thread_id = "default"
+        if config and isinstance(config, dict):
+            thread_id = config.get("configurable", {}).get("thread_id", "default")
+            
+        workspace_dir = os.path.join(workspace_parent, thread_id)
+        
+        # 确保本地隔离子目录存在
         os.makedirs(workspace_dir, exist_ok=True)
+
+        # 自动扫描并清理 30 天之前的历史旧文件
+        _clean_old_files(workspace_parent, max_days=30)
 
         # 1. 初始化 Daytona 客户端
         # 会自动从环境变量中读取 DAYTONA_API_KEY 和 DAYTONA_API_URL

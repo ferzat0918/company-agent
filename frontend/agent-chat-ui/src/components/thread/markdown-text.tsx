@@ -6,7 +6,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
-import { FC, memo, useState } from "react";
+import { FC, memo, useState, useMemo } from "react";
+import { useQueryState } from "nuqs";
 import { CheckIcon, CopyIcon, File, Download } from "lucide-react";
 import { SyntaxHighlighter } from "@/components/thread/syntax-highlighter";
 
@@ -219,36 +220,6 @@ const defaultComponents: any = {
     />
   ),
   a: ({ className, href, children, ...props }: { className?: string; href?: string; children?: React.ReactNode }) => {
-    const isWorkspaceDownload = href?.startsWith("/workspace/");
-    if (isWorkspaceDownload && href) {
-      const filename = href.replace("/workspace/", "");
-      return (
-        <a
-          href={href}
-          download
-          className="my-4 flex items-center justify-between gap-4 max-w-md rounded border border-[var(--umx-line)] bg-[var(--umx-bg-2)] p-4 transition-all duration-300 hover:scale-[1.01] hover:bg-black/20 hover:border-[var(--umx-acid)] group shadow-sm text-inherit no-underline block"
-          {...props}
-        >
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--umx-line)] bg-[var(--umx-bg-1)] text-[var(--umx-acid)] group-hover:bg-[var(--umx-acid)] group-hover:text-black transition-all duration-300">
-              <File className="h-5 w-5" />
-            </div>
-            <div className="flex flex-col overflow-hidden text-left">
-              <span className="truncate text-sm font-semibold font-mono text-[var(--umx-white)] group-hover:text-[var(--umx-acid)] transition-colors duration-300">
-                {children || filename}
-              </span>
-              <span className="text-[10px] uppercase tracking-wider text-[var(--umx-text-dim)] font-mono mt-0.5">
-                安全沙盒生成文件 · 点击下载
-              </span>
-            </div>
-          </div>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--umx-bg-1)] border border-[var(--umx-line)] text-[var(--umx-text-dim)] group-hover:text-[var(--umx-acid)] group-hover:border-[var(--umx-acid)] transition-all duration-300">
-            <Download className="h-4 w-4 animate-pulse group-hover:animate-none" />
-          </div>
-        </a>
-      );
-    }
-
     return (
       <a
         className={cn(
@@ -409,12 +380,77 @@ function preprocessMarkdown(md: string): string {
 }
 
 const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
+  const [threadId] = useQueryState("threadId");
+
+  const components = useMemo(() => {
+    return {
+      ...defaultComponents,
+      a: ({ className, href, children, ...props }: { className?: string; href?: string; children?: React.ReactNode }) => {
+        let resolvedHref = href ?? "";
+        if (resolvedHref.startsWith("file:///workspace/")) {
+          resolvedHref = resolvedHref.replace("file:///workspace/", "/workspace/");
+        }
+        
+        const isWorkspaceFile = resolvedHref.startsWith("/workspace/");
+        
+        if (isWorkspaceFile && threadId) {
+          const prefix = `/workspace/${threadId}/`;
+          if (!resolvedHref.startsWith(prefix)) {
+            resolvedHref = prefix + resolvedHref.substring("/workspace/".length);
+          }
+        }
+
+        if (isWorkspaceFile) {
+          const fileName = resolvedHref.split("/").pop() || "download-file";
+          return (
+            <a
+              href={resolvedHref}
+              download={fileName}
+              className="my-3 flex items-center justify-between gap-4 rounded-xl border border-[var(--umx-line)] bg-[var(--umx-bg-2)] p-4 text-[var(--umx-text)] transition-all duration-300 hover:border-[var(--umx-brand)] hover:shadow-lg hover:shadow-[var(--umx-brand-glow)] group/download no-underline"
+              {...props}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--umx-bg-3)] text-[var(--umx-brand)] border border-[var(--umx-line)] transition-colors group-hover/download:bg-[var(--umx-brand)] group-hover/download:text-white">
+                  <File className="h-5 w-5" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-mono text-sm font-semibold tracking-wide truncate max-w-[240px] text-[var(--umx-text)] no-underline">
+                    {children || fileName}
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
+                    工作区沙盒文件
+                  </span>
+                </div>
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg-3)] text-[var(--umx-silver)] transition-all duration-300 group-hover/download:border-[var(--umx-brand)] group-hover/download:bg-[var(--umx-brand)] group-hover/download:text-white group-hover/download:scale-110">
+                <Download className="h-4 w-4" />
+              </div>
+            </a>
+          );
+        }
+
+        return (
+          <a
+            className={cn(
+              "text-[var(--umx-brand)] font-medium underline underline-offset-4 hover:text-[var(--umx-brand-hover)] transition-colors",
+              className,
+            )}
+            href={resolvedHref}
+            {...props}
+          >
+            {children}
+          </a>
+        );
+      }
+    };
+  }, [threadId]);
+
   return (
     <div className="markdown-content">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
-        components={defaultComponents}
+        components={components}
       >
         {preprocessMarkdown(children)}
       </ReactMarkdown>

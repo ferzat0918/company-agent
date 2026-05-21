@@ -130,8 +130,14 @@ def _process_content_list(content_list: list) -> list:
                         file_bytes = base64.b64decode(data_base64)
                         # Save file to workspace so the Docker python sandbox can access it
                         try:
+                            from langchain_core.runnables.config import var_child_runnable_config
+                            config = var_child_runnable_config.get()
+                            thread_id = "default"
+                            if config and isinstance(config, dict):
+                                thread_id = config.get("configurable", {}).get("thread_id", "default")
+                            
                             project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-                            workspace_dir = os.path.join(project_root, "workspace")
+                            workspace_dir = os.path.join(project_root, "workspace", thread_id)
                             os.makedirs(workspace_dir, exist_ok=True)
                             dest_filepath = os.path.join(workspace_dir, filename)
                             with open(dest_filepath, "wb") as wf:
