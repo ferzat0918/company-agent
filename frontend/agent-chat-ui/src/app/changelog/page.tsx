@@ -263,9 +263,6 @@ function ChangelogContent() {
 }
 
 function ChangelogGate() {
-  const { session, loading } = useAuth();
-  if (loading) return <UmxLoadingScreen />;
-  if (!session) return <LoginPage />;
   return <ChangelogContent />;
 }
 
