@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import { FC, memo, useState } from "react";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, File, Download } from "lucide-react";
 import { SyntaxHighlighter } from "@/components/thread/syntax-highlighter";
 
 import { TooltipIconButton } from "@/components/thread/tooltip-icon-button";
@@ -218,15 +218,50 @@ const defaultComponents: any = {
       {...props}
     />
   ),
-  a: ({ className, ...props }: { className?: string }) => (
-    <a
-      className={cn(
-        "text-primary font-medium underline underline-offset-4",
-        className,
-      )}
-      {...props}
-    />
-  ),
+  a: ({ className, href, children, ...props }: { className?: string; href?: string; children?: React.ReactNode }) => {
+    const isWorkspaceDownload = href?.startsWith("/workspace/");
+    if (isWorkspaceDownload && href) {
+      const filename = href.replace("/workspace/", "");
+      return (
+        <a
+          href={href}
+          download
+          className="my-4 flex items-center justify-between gap-4 max-w-md rounded border border-[var(--umx-line)] bg-[var(--umx-bg-2)] p-4 transition-all duration-300 hover:scale-[1.01] hover:bg-black/20 hover:border-[var(--umx-acid)] group shadow-sm text-inherit no-underline block"
+          {...props}
+        >
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--umx-line)] bg-[var(--umx-bg-1)] text-[var(--umx-acid)] group-hover:bg-[var(--umx-acid)] group-hover:text-black transition-all duration-300">
+              <File className="h-5 w-5" />
+            </div>
+            <div className="flex flex-col overflow-hidden text-left">
+              <span className="truncate text-sm font-semibold font-mono text-[var(--umx-white)] group-hover:text-[var(--umx-acid)] transition-colors duration-300">
+                {children || filename}
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--umx-text-dim)] font-mono mt-0.5">
+                安全沙盒生成文件 · 点击下载
+              </span>
+            </div>
+          </div>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--umx-bg-1)] border border-[var(--umx-line)] text-[var(--umx-text-dim)] group-hover:text-[var(--umx-acid)] group-hover:border-[var(--umx-acid)] transition-all duration-300">
+            <Download className="h-4 w-4 animate-pulse group-hover:animate-none" />
+          </div>
+        </a>
+      );
+    }
+
+    return (
+      <a
+        className={cn(
+          "text-primary font-medium underline underline-offset-4",
+          className,
+        )}
+        href={href}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
   blockquote: ({ className, ...props }: { className?: string }) => (
     <blockquote
       className={cn("border-l-2 pl-6 italic", className)}
