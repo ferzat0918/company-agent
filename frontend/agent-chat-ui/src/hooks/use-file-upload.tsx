@@ -9,6 +9,12 @@ export const SUPPORTED_FILE_TYPES = [
   "image/gif",
   "image/webp",
   "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/json",
 ];
 
 interface UseFileUploadOptions {
@@ -25,19 +31,19 @@ export function useFileUpload({
   const dragCounter = useRef(0);
 
   const isDuplicate = (file: File, blocks: ContentBlock.Multimodal.Data[]) => {
-    if (file.type === "application/pdf") {
+    if (file.type.startsWith("image/")) {
       return blocks.some(
         (b) =>
-          b.type === "file" &&
-          b.mimeType === "application/pdf" &&
-          b.metadata?.filename === file.name,
+          b.type === "image" &&
+          b.metadata?.name === file.name &&
+          b.mimeType === file.type,
       );
     }
     if (SUPPORTED_FILE_TYPES.includes(file.type)) {
       return blocks.some(
         (b) =>
-          b.type === "image" &&
-          b.metadata?.name === file.name &&
+          b.type === "file" &&
+          b.metadata?.filename === file.name &&
           b.mimeType === file.type,
       );
     }
@@ -63,7 +69,7 @@ export function useFileUpload({
 
     if (invalidFiles.length > 0) {
       toast.error(
-        "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image or a PDF.",
+        "You have uploaded an invalid file type. Please upload an image, PDF, Word, Excel, or plain text file.",
       );
     }
     if (duplicateFiles.length > 0) {
@@ -123,7 +129,7 @@ export function useFileUpload({
 
       if (invalidFiles.length > 0) {
         toast.error(
-          "You have uploaded invalid file type. Please upload a JPEG, PNG, GIF, WEBP image or a PDF.",
+          "You have uploaded an invalid file type. Please upload an image, PDF, Word, Excel, or plain text file.",
         );
       }
       if (duplicateFiles.length > 0) {
@@ -221,19 +227,19 @@ export function useFileUpload({
       (file) => !SUPPORTED_FILE_TYPES.includes(file.type),
     );
     const isDuplicate = (file: File) => {
-      if (file.type === "application/pdf") {
+      if (file.type.startsWith("image/")) {
         return contentBlocks.some(
           (b) =>
-            b.type === "file" &&
-            b.mimeType === "application/pdf" &&
-            b.metadata?.filename === file.name,
+            b.type === "image" &&
+            b.metadata?.name === file.name &&
+            b.mimeType === file.type,
         );
       }
       if (SUPPORTED_FILE_TYPES.includes(file.type)) {
         return contentBlocks.some(
           (b) =>
-            b.type === "image" &&
-            b.metadata?.name === file.name &&
+            b.type === "file" &&
+            b.metadata?.filename === file.name &&
             b.mimeType === file.type,
         );
       }
@@ -243,7 +249,7 @@ export function useFileUpload({
     const uniqueFiles = validFiles.filter((file) => !isDuplicate(file));
     if (invalidFiles.length > 0) {
       toast.error(
-        "You have pasted an invalid file type. Please paste a JPEG, PNG, GIF, WEBP image or a PDF.",
+        "You have pasted an invalid file type. Please paste an image, PDF, Word, Excel, or plain text file.",
       );
     }
     if (duplicateFiles.length > 0) {

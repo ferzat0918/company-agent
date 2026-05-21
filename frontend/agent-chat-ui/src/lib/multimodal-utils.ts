@@ -1,7 +1,7 @@
 import { ContentBlock } from "@langchain/core/messages";
 import { toast } from "sonner";
 
-// Returns a Promise of a typed multimodal block for images or PDFs
+// Returns a Promise of a typed multimodal block for images or other files
 export async function fileToContentBlock(
   file: File,
 ): Promise<ContentBlock.Multimodal.Data> {
@@ -11,11 +11,20 @@ export async function fileToContentBlock(
     "image/gif",
     "image/webp",
   ];
-  const supportedFileTypes = [...supportedImageTypes, "application/pdf"];
+  const supportedDocumentTypes = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "application/json",
+  ];
+  const supportedFileTypes = [...supportedImageTypes, ...supportedDocumentTypes];
 
   if (!supportedFileTypes.includes(file.type)) {
     toast.error(
-      `Unsupported file type: ${file.type}. Supported types are: ${supportedFileTypes.join(", ")}`,
+      `Unsupported file type: ${file.type}. Supported types are: image, PDF, Word, Excel, or plain text files.`,
     );
     return Promise.reject(new Error(`Unsupported file type: ${file.type}`));
   }
@@ -31,10 +40,10 @@ export async function fileToContentBlock(
     };
   }
 
-  // PDF
+  // Document (PDF, Word, Excel, text, markdown, etc.)
   return {
     type: "file",
-    mimeType: "application/pdf",
+    mimeType: file.type,
     data,
     metadata: { filename: file.name },
   };
@@ -60,22 +69,23 @@ export function isBase64ContentBlock(
 ): block is ContentBlock.Multimodal.Data {
   if (typeof block !== "object" || block === null || !("type" in block))
     return false;
-  // file type (legacy)
+  
+  const b = block as { type: unknown; mimeType?: unknown };
+  
+  // file type (documents)
   if (
-    (block as { type: unknown }).type === "file" &&
+    b.type === "file" &&
     "mimeType" in block &&
-    typeof (block as { mimeType?: unknown }).mimeType === "string" &&
-    ((block as { mimeType: string }).mimeType.startsWith("image/") ||
-      (block as { mimeType: string }).mimeType === "application/pdf")
+    typeof b.mimeType === "string"
   ) {
     return true;
   }
   // image type (new)
   if (
-    (block as { type: unknown }).type === "image" &&
+    b.type === "image" &&
     "mimeType" in block &&
-    typeof (block as { mimeType?: unknown }).mimeType === "string" &&
-    (block as { mimeType: string }).mimeType.startsWith("image/")
+    typeof b.mimeType === "string" &&
+    b.mimeType.startsWith("image/")
   ) {
     return true;
   }
