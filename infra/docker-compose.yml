@@ -20,6 +20,7 @@ services:
       - ${HOST_INFRA_DIR:-.}/init-feedback.sql:/docker-entrypoint-initdb.d/20-init-feedback.sql:ro
       - ${HOST_INFRA_DIR:-.}/init-profiles.sql:/docker-entrypoint-initdb.d/30-init-profiles.sql:ro
       - ${HOST_INFRA_DIR:-.}/init-finance.sql:/docker-entrypoint-initdb.d/40-init-finance.sql:ro
+      - ${HOST_INFRA_DIR:-.}/init-rls-hardening.sql:/docker-entrypoint-initdb.d/50-init-rls-hardening.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

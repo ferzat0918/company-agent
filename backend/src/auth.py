@@ -27,6 +27,9 @@ if not _jwt_secret:
 
 _supabase_url = os.environ.get("SUPABASE_URL", "http://localhost:8000")
 _supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+# Service key bypasses RLS — needed to look up profiles server-side after
+# RLS was enabled on `public.profiles`. Falls back to anon for dev/test.
+_supabase_service_key = os.environ.get("SUPABASE_SERVICE_KEY", _supabase_anon_key)
 
 auth = Auth()
 
@@ -39,8 +42,8 @@ async def _get_profile(user_id: str) -> dict | None:
                 f"{_supabase_url}/rest/v1/profiles",
                 params={"user_id": f"eq.{user_id}", "select": "*"},
                 headers={
-                    "apikey": _supabase_anon_key,
-                    "Authorization": f"Bearer {_supabase_anon_key}",
+                    "apikey": _supabase_service_key,
+                    "Authorization": f"Bearer {_supabase_service_key}",
                 },
             )
             if resp.status_code == 200 and resp.json():

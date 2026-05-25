@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import {
   Download,
+  FileDown,
   FileSpreadsheet,
   Upload,
   Sparkles,
@@ -14,7 +15,13 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
-import { SectionLabel, useToast } from "../_components";
+import {
+  MATERIAL_MOVE_TYPES,
+  PLATFORMS,
+  PRODUCT_MOVE_TYPES,
+  SectionLabel,
+  useToast,
+} from "../_components";
 import { useAuth } from "@/providers/Auth";
 
 type Bundle = {
@@ -109,6 +116,127 @@ export default function FinanceImportExportPage() {
     setWorking(false);
     appendLog(`✓ ${fname} 已下载`);
     show("ok", "全量导出完成");
+  }
+
+  /* ──────────────────────────────────────────────────────
+   * 模板下载：空表头 + 字段说明，给业务部门填后回传
+   * ────────────────────────────────────────────────────── */
+
+  function downloadTemplate(format: "xlsx" | "csv", which?: keyof Bundle) {
+    appendLog(
+      `生成模板：${format === "xlsx" ? "Excel (全部 4 表)" : `CSV (${which})`}...`,
+    );
+
+    const TEMPLATES: Record<keyof Bundle, string[]> = {
+      products: ["code", "name", "price", "min_stock", "max_stock", "note"],
+      materials: [
+        "code",
+        "name",
+        "unit_price",
+        "min_stock",
+        "max_stock",
+        "note",
+      ],
+      boms: [
+        "product_code",
+        "material_code",
+        "qty",
+        "loss_rate",
+        "note",
+      ],
+      moves: [
+        "kind",
+        "code",
+        "move_type",
+        "qty",
+        "unit_price",
+        "platform",
+        "customer",
+        "ref_product_code",
+        "is_repurchase",
+        "payment_date",
+        "occurred_at",
+        "note",
+      ],
+    };
+
+    const HELP_ROWS: string[][] = [
+      ["sheet", "字段 / column", "类型", "说明 / note"],
+      ["products", "code", "text", "成品编号（主键，必填，例 GP1001）"],
+      ["products", "name", "text", "成品名称（必填）"],
+      ["products", "price", "number", "售价（可空）"],
+      ["products", "min_stock", "number", "最低库存预警（可空）"],
+      ["products", "max_stock", "number", "最高库存预警（可空）"],
+      ["products", "note", "text", "备注（可空）"],
+      ["", "", "", ""],
+      ["materials", "code", "text", "原料编号（主键，必填，例 YL1001）"],
+      ["materials", "name", "text", "原料名称（必填）"],
+      ["materials", "unit_price", "number", "单价（可空）"],
+      ["materials", "min_stock", "number", "最低库存预警"],
+      ["materials", "max_stock", "number", "最高库存预警"],
+      ["materials", "note", "text", "备注"],
+      ["", "", "", ""],
+      ["boms", "product_code", "text", "成品编号，必须先在 products 里建好"],
+      ["boms", "material_code", "text", "原料编号，必须先在 materials 里建好"],
+      ["boms", "qty", "number", "1 个成品需要的原料数量（必填）"],
+      ["boms", "loss_rate", "number", "损耗率：0.05 表示 5%（可空，默认 0）"],
+      ["boms", "note", "text", "备注"],
+      ["", "", "", ""],
+      ["moves", "kind", "enum", "product / material 两选一（必填）"],
+      ["moves", "code", "text", "对应 products.code 或 materials.code（必填）"],
+      [
+        "moves",
+        "move_type",
+        "enum",
+        `成品类型：${PRODUCT_MOVE_TYPES.join(" / ")}；原料类型：${MATERIAL_MOVE_TYPES.join(" / ")}`,
+      ],
+      ["moves", "qty", "number", "数量（必填，> 0）"],
+      ["moves", "unit_price", "number", "单价（可空）"],
+      ["moves", "platform", "enum", `仅成品销售用：${PLATFORMS.join(" / ")}`],
+      ["moves", "customer", "text", "客户名称（仅成品销售）"],
+      ["moves", "ref_product_code", "text", "对应成品编号（仅原料生产领料）"],
+      [
+        "moves",
+        "is_repurchase",
+        "bool",
+        "是否回购客户（true / false / 1 / 0；仅成品销售）",
+      ],
+      ["moves", "payment_date", "date", "回款日期，格式 YYYY-MM-DD（仅成品销售）"],
+      [
+        "moves",
+        "occurred_at",
+        "datetime",
+        "发生时间，格式 YYYY-MM-DD HH:mm 或 ISO；空则取导入时刻",
+      ],
+      ["moves", "note", "text", "备注"],
+    ];
+
+    if (format === "csv") {
+      if (!which) return;
+      const headers = TEMPLATES[which];
+      const csv = headers.join(",") + "\n";
+      const blob = new Blob(["﻿" + csv], {
+        type: "text/csv;charset=utf-8;",
+      });
+      triggerDownload(blob, `template_${which}.csv`);
+      appendLog(`✓ template_${which}.csv 已下载`);
+      show("ok", "模板已下载");
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    (Object.keys(TEMPLATES) as (keyof Bundle)[]).forEach((t) => {
+      const ws = XLSX.utils.aoa_to_sheet([TEMPLATES[t]]);
+      // 把表头宽度设宽点，方便人填写
+      ws["!cols"] = TEMPLATES[t].map(() => ({ wch: 18 }));
+      XLSX.utils.book_append_sheet(wb, ws, t);
+    });
+    const wsHelp = XLSX.utils.aoa_to_sheet(HELP_ROWS);
+    wsHelp["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 64 }];
+    XLSX.utils.book_append_sheet(wb, wsHelp, "字段说明");
+    XLSX.writeFile(wb, "finance_template.xlsx");
+    appendLog("✓ finance_template.xlsx 已下载（4 张空表 + 字段说明）");
+    show("ok", "模板已下载");
   }
 
   /* ──────────────────────────────────────────────────────
@@ -514,10 +642,52 @@ export default function FinanceImportExportPage() {
       <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-6">
         <p className="mb-5 max-w-2xl font-body text-sm leading-relaxed text-[var(--umx-silver)]">
           Excel：sheet 名要是 <code className="font-mono text-[11px] text-[var(--umx-acid)]">products / materials / boms / moves</code>
-          ，列名要和数据库字段一致（一般是从此页导出再编辑后回传）。
+          ，列名要和数据库字段一致。
           CSV：单文件单表，依靠表头自动识别。
           导入时 products/materials 按 code 覆盖、boms 按 (product_code, material_code) 覆盖、moves 追加写入。
         </p>
+
+        {/* 模板下载 */}
+        <div className="mb-5 border border-[var(--umx-line)] bg-[var(--umx-bg-2)] p-4">
+          <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--umx-acid)]">
+            <FileDown className="size-3" />
+            模板下载 / TEMPLATES
+          </div>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button
+              variant="acid"
+              size="sm"
+              disabled={working}
+              onClick={() => downloadTemplate("xlsx")}
+              className="gap-1.5"
+            >
+              <FileDown className="size-3" />
+              全部 4 表 + 字段说明 .xlsx
+            </Button>
+          </div>
+          <div className="border-t border-[var(--umx-line)] pt-3">
+            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--umx-text-dim)]">
+              分表 CSV 模板
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(Object.keys(TABLE_LABELS) as (keyof Bundle)[]).map((t) => (
+                <Button
+                  key={t}
+                  variant="outline"
+                  size="sm"
+                  disabled={working}
+                  onClick={() => downloadTemplate("csv", t)}
+                  className="gap-1.5"
+                >
+                  <Download className="size-3" />
+                  {t}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 导入 */}
         <input
           ref={fileRefGeneric}
           type="file"
@@ -530,7 +700,7 @@ export default function FinanceImportExportPage() {
           }}
         />
         <Button
-          variant="outline"
+          variant="default"
           size="lg"
           disabled={working}
           onClick={() => fileRefGeneric.current?.click()}

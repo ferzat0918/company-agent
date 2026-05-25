@@ -27,6 +27,9 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 # ─── Supabase ───────────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "http://localhost:8000")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+# Service key bypasses RLS — required for backend-side profile lookups
+# after RLS was enabled on `profiles`. Falls back to anon for dev/test only.
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_ANON_KEY)
 
 _jwt_secret = os.getenv("JWT_SECRET") or os.getenv("SUPABASE_JWT_SECRET")
 if not _jwt_secret:
