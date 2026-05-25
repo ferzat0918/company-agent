@@ -46,6 +46,7 @@ services:
     routes:
       - name: langgraph-route
         paths:
+          - /agent/v1
         strip_path: true
         request_buffering: false
         response_buffering: false
