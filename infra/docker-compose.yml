@@ -303,10 +303,35 @@ services:
     container_name: company-agent-cloudflared
     restart: unless-stopped
     entrypoint: ["cloudflared", "tunnel", "--no-autoupdate", "run"]
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARED_TOKEN:-}
     depends_on:
       - frontend
+
+  # 1. GeWeChat 微信 iPad 协议服务
+  gewechat:
+    image: registry.cn-chengdu.aliyuncs.com/tu1h/wechotd:alpine
+    container_name: umx-wechat-protocol
+    restart: unless-stopped
+    ports:
+      - "2531:2531"
+      - "2532:2532"
+    volumes:
+      - ${HOST_PROJECT_DIR:-..}/gewechat/data:/root/temp
+
+  # 2. 微信与智能体消息桥接服务
+  wechat-bridge:
+    build:
+      context: ${HOST_PROJECT_DIR:-..}/wechat-bridge
+      dockerfile: Dockerfile
+    container_name: umx-wechat-bridge
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - GEWECHAT_API_URL=http://gewechat:2531
+      - LANGGRAPH_API_URL=http://langgraph:2024
+    depends_on:
+      - gewechat
+      - langgraph
 
 volumes:
   postgres-data:

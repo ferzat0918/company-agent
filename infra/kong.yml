@@ -46,7 +46,15 @@ services:
     routes:
       - name: langgraph-route
         paths:
-          - /agent/v1
         strip_path: true
         request_buffering: false
         response_buffering: false
+
+  # GeWeChat REST API Service ( iPad 协议路由，支持前端无跨域调用扫码登录等接口 )
+  - name: gewechat-service
+    url: http://gewechat:2531
+    routes:
+      - name: gewechat-route
+        paths:
+          - /wechat/v2
+        strip_path: true
