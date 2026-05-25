@@ -9,7 +9,7 @@ import { LoginPage } from "@/components/LoginPage";
 import { NavLinks } from "@/components/nav-links";
 import { UmxSymbol, UmxWordmark } from "@/components/icons/umx-logo";
 import { Button } from "@/components/ui/button";
-import { Lock } from "lucide-react";
+import { Lock, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type FinanceProfile = {
@@ -120,6 +120,20 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
   const { user, session, loading } = useAuth();
   const [profile, setProfile] = useState<FinanceProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("umx-finance-theme") as "dark" | "light";
+    if (saved === "light" || saved === "dark") {
+      setTheme(saved);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("umx-finance-theme", next);
+  };
 
   useEffect(() => {
     if (!user?.id) {
@@ -154,7 +168,10 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
 
   return (
     <FinanceProfileContext.Provider value={profile}>
-      <main className="umx-scrollbar min-h-screen overflow-x-hidden bg-[var(--umx-bg-0)] text-[var(--umx-white)]">
+      <main className={cn(
+        "umx-scrollbar min-h-screen overflow-x-hidden transition-colors duration-200 text-[var(--umx-white)]",
+        theme === "light" ? "light bg-[#ffffff]" : "dark bg-[var(--umx-bg-0)]"
+      )}>
         {/* 顶栏 */}
         <header className="flex items-center justify-between border-b border-[var(--umx-line)] px-8 py-5">
           <Link
@@ -167,7 +184,23 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
               · COMPANY AGENT / FINANCE
             </span>
           </Link>
-          <NavLinks />
+          
+          <div className="flex items-center gap-6">
+            <NavLinks />
+            
+            {/* 极简直角暗色/亮色切换按钮 */}
+            <button
+              onClick={toggleTheme}
+              title={theme === "dark" ? "切换为明亮模式 / LIGHT MODE" : "切换为暗色模式 / DARK MODE"}
+              className="flex size-9 items-center justify-center border border-[var(--umx-line)] bg-[var(--umx-bg-2)] text-[var(--umx-white)] hover:bg-[var(--umx-bg-3)] focus:outline-none transition-colors cursor-pointer"
+            >
+              {theme === "dark" ? (
+                <Sun className="size-4" />
+              ) : (
+                <Moon className="size-4" />
+              )}
+            </button>
+          </div>
         </header>
 
         {/* 财务子导航 */}

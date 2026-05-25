@@ -83,6 +83,11 @@
   --umx-line-strong: #a0a0a0;
   --umx-text-dim: #6a6a6c;
 
+  /* Redefine brand constants locally for light mode so standard texts/highlights adapt */
+  --umx-white: #0a0a0a;
+  --umx-silver: #2a2a2a;
+  --umx-acid: #7201ff;   /* Neon purple for elegant high contrast instead of neon yellow */
+
   --background: var(--umx-bg-0);
   --foreground: var(--umx-black);
   --card: var(--umx-bg-1);
@@ -96,7 +101,7 @@
   --muted: var(--umx-bg-2);
   --muted-foreground: var(--umx-text-dim);
   --accent: var(--umx-acid);
-  --accent-foreground: var(--umx-black);
+  --accent-foreground: var(--umx-white);
   --border: var(--umx-line);
   --input: var(--umx-line);
   --ring: var(--umx-violet);
