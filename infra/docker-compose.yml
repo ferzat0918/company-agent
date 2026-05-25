@@ -19,6 +19,7 @@ services:
       - ${HOST_INFRA_DIR:-.}/init-kong-db.sql:/docker-entrypoint-initdb.d/10-init-kong-db.sql:ro
       - ${HOST_INFRA_DIR:-.}/init-feedback.sql:/docker-entrypoint-initdb.d/20-init-feedback.sql:ro
       - ${HOST_INFRA_DIR:-.}/init-profiles.sql:/docker-entrypoint-initdb.d/30-init-profiles.sql:ro
+      - ${HOST_INFRA_DIR:-.}/init-finance.sql:/docker-entrypoint-initdb.d/40-init-finance.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

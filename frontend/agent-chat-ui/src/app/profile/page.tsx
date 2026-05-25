@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Check, AlertCircle, MessageSquarePlus, ListChecks, Shield } from "lucide-react";
+import { Check, AlertCircle, MessageSquarePlus, ListChecks, Shield, Calculator } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -361,6 +361,30 @@ function AdminCard() {
   );
 }
 
+/* ── Finance entry (only visible to 财务部 / 系统管理员) ────── */
+
+function FinanceCard({ profile }: { profile: ProfileRow | null }) {
+  const isFinance = profile?.dept === "财务部" || profile?.role === "系统管理员";
+  if (!isFinance) return null;
+
+  return (
+    <section>
+      <SectionLabel index="05" title="FINANCE" />
+      <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-6">
+        <p className="mb-6 font-body text-sm leading-relaxed text-[var(--umx-silver)]">
+          财务工作台：成品/原料档案、BOM 配方、出入库流水、库存预警、Excel 一键导入导出。
+        </p>
+        <Link href="/finance">
+          <Button variant="acid" size="lg" className="w-full gap-2">
+            <Calculator className="size-4" />
+            FINANCE WORKSPACE
+          </Button>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function ProfileContent() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -401,6 +425,7 @@ function ProfileContent() {
         <PasswordCard />
         <FeedbackCard onOpenModal={() => setFeedbackOpen(true)} />
         <AdminCard />
+        <FinanceCard profile={profile} />
       </div>
       <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </main>
