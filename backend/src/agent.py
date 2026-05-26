@@ -19,6 +19,7 @@ from .config import (
     TAVILY_API_KEY,
 )
 from .memory.prompt_inject import MemoryInjectMiddleware
+from .wechat_middleware import WeChatChannelMiddleware
 from .memory.tool import make_memory_tool, make_memory_undo_tool
 from .skills_loader import get_skills_config, validate_skills
 from .sandbox import sandbox_tool
@@ -160,10 +161,28 @@ _memory_undo_tool = make_memory_undo_tool(
     get_user_id=lambda: _memory_middleware._last_user_id,
 )
 
+# ─── WeChat File Sending Tool ────────────────────────────────────
+from langchain_core.tools import tool
+
+@tool
+def send_wechat_file(filepath: str) -> str:
+    """发送本地沙盒生成的文件、图片或矢量图到微信当前的聊天窗口中。
+    
+    当你（或后台子智能体）在沙盒中生成了任何文件（如报告、Excel、LOGO 矢量图等），且用户当前是在微信渠道时，
+    你【必须】调用此工具来直接发送该实体文件给用户。
+    
+    Args:
+        filepath: 文件在沙盒中的绝对路径，必须以 '/workspace/' 开头。
+                  例如: '/workspace/umx-logo/logo-full.svg' 或 '/workspace/weekly_report.xlsx'。
+    """
+    if not filepath.startswith("/workspace/"):
+        return f"错误：文件路径必须以 '/workspace/' 开头，当前为: {filepath}"
+    return f"[WECHAT_FILE_PUSH]: {filepath}"
+
 # ─── Web search tool (Tavily) ───────────────────────────────────
 # Inherited by every SubAgent because none of them declare their own
 # `tools` field — see deepagents/graph.py:575 (inherit-from-parent logic).
-_agent_tools: list = [_memory_tool, _memory_undo_tool, sandbox_tool]
+_agent_tools: list = [_memory_tool, _memory_undo_tool, sandbox_tool, send_wechat_file]
 if TAVILY_API_KEY:
     # Imported lazily so the package is only required when the key is set.
     from langchain_tavily import TavilySearch
@@ -201,6 +220,11 @@ _content_prompt = _load_prompt(
     fallback="你是公司内容产出 SubAgent。负责选题、脚本、拍摄剪辑指导等任务。请始终使用中文进行思考和推理，使用中文回答。",
 )
 
+_wechat_prompt = _load_prompt(
+    "subagents/wechat.md",
+    fallback="你是专门处理微信端消息的 SubAgent。请保持语言精炼、排版清爽、语调亲和，善用Emoji。",
+)
+
 # ─── SubAgents ──────────────────────────────────────────────────
 SUBAGENTS = [
     {
@@ -231,6 +255,13 @@ SUBAGENTS = [
         "model": _llm,
         "skills": skills_dirs,
     },
+    {
+        "name": "wechat-agent",
+        "description": "专门处理来自微信端的消息。负责以亲和、精炼的格式答复微信用户，并在需要时调度营销、HR、B端销售等后台 Agent 协作。",
+        "system_prompt": _wechat_prompt + _SANDBOX_SUFFIX,
+        "model": _llm,
+        "skills": skills_dirs,
+    },
 ]
 
 # ─── Supervisor (top-level agent) ───────────────────────────────
@@ -243,5 +274,5 @@ agent = create_deep_agent(
     skills=skills_dirs,
     backend=FilesystemBackend(root_dir=".", virtual_mode=True),
     permissions=AGENT_FS_PERMISSIONS,
-    middleware=[_memory_middleware],
+    middleware=[_memory_middleware, WeChatChannelMiddleware()],
 )

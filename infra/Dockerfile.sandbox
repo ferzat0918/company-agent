@@ -6,11 +6,21 @@ WORKDIR /workspace
 
 # Install system dependencies if any are needed for libraries (e.g. gcc, git, build-essential for some pip packages)
 # python:3.11-slim is minimal, so we pre-install key pacakges
+# Use domestic Tsinghua mirror for apt-get to speed up package downloads in China
+RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list || true && \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources; fi
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ffmpeg \
+    librsvg2-bin \
+    poppler-utils \
+    libcairo2-dev \
+    pkg-config \
+    libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install common data parsing, science, and report generation libraries
+# Install common data parsing, science, report generation and media conversion libraries
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
     pandas \
     openpyxl \
@@ -20,7 +30,12 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
     requests \
     jinja2 \
     pypdf \
-    openpyxl
+    cairosvg \
+    Pillow \
+    svglib \
+    pdf2image \
+    python-pptx \
+    moviepy
 
 # Set the command to keep the container running indefinitely
 CMD ["tail", "-f", "/dev/null"]

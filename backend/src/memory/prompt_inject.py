@@ -70,7 +70,27 @@ class MemoryInjectMiddleware(AgentMiddleware):
           - the frontend never renders it as a chat bubble, and
           - it doesn't accumulate one duplicate per turn.
         """
-        self._last_user_id = self._get_user_id(runtime)
+        user_id = self._get_user_id(runtime)
+        
+        try:
+            from langgraph.config import get_config
+            config = get_config()
+            metadata = config.get("metadata", {})
+            configurable = config.get("configurable", {})
+            channel = configurable.get("channel") or metadata.get("channel", "web")
+            chat_name = configurable.get("chat_name") or metadata.get("chat_name", "")
+            sender = configurable.get("sender") or metadata.get("sender", "未知发送者")
+        except Exception:
+            channel = "web"
+            chat_name = ""
+            sender = "未知发送者"
+
+        if channel == "wechat":
+            target_name = sender if (sender and sender != "未知发送者") else chat_name
+            if target_name:
+                user_id = f"wechat_{target_name}"
+
+        self._last_user_id = user_id
         self._last_store = getattr(runtime, "store", None)
         return None
 
@@ -84,6 +104,25 @@ class MemoryInjectMiddleware(AgentMiddleware):
         runtime = request.runtime
         user_id = self._get_user_id(runtime) if runtime else self._last_user_id
         store = (getattr(runtime, "store", None) if runtime else None) or self._last_store
+
+        try:
+            from langgraph.config import get_config
+            config = get_config()
+            metadata = config.get("metadata", {})
+            configurable = config.get("configurable", {})
+            channel = configurable.get("channel") or metadata.get("channel", "web")
+            chat_name = configurable.get("chat_name") or metadata.get("chat_name", "")
+            sender = configurable.get("sender") or metadata.get("sender", "未知发送者")
+        except Exception:
+            channel = "web"
+            chat_name = ""
+            sender = "未知发送者"
+
+        if channel == "wechat":
+            target_name = sender if (sender and sender != "未知发送者") else chat_name
+            if target_name:
+                user_id = f"wechat_{target_name}"
+
         # Keep cache fresh so the memory tool sees the same values.
         if user_id is not None:
             self._last_user_id = user_id

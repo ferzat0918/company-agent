@@ -81,6 +81,36 @@ def _clean_old_files(workspace_parent_dir: str, max_days: int = 30) -> None:
                     print(f"[Cleanup] Failed to process directory {item}: {str(dir_err)}")
     except Exception as err:
         print(f"[Cleanup] Error scanning workspace: {str(err)}")
+
+def _download_dir_recursive(sandbox, remote_dir: str, local_dir: str):
+    """递归下载沙盒目录下的所有文件和子目录，完美保留目录结构"""
+    import os
+    os.makedirs(local_dir, exist_ok=True)
+    try:
+        remote_items = sandbox.fs.list_files(remote_dir)
+        for item in remote_items:
+            name = item.name
+            if name.startswith("."):
+                continue
+            
+            # Form clean remote and local paths
+            if remote_dir == "./" or remote_dir == "." or not remote_dir:
+                remote_path = f"./{name}"
+            else:
+                remote_path = f"{remote_dir}/{name}"
+                
+            local_path = os.path.join(local_dir, name)
+            
+            if item.is_dir:
+                _download_dir_recursive(sandbox, remote_path, local_path)
+            else:
+                try:
+                    sandbox.fs.download_file(remote_path, local_path)
+                except Exception as dl_err:
+                    print(f"[Daytona] Failed to download file {remote_path}: {str(dl_err)}")
+    except Exception as fs_err:
+        print(f"[Daytona] Failed to list remote dir {remote_dir}: {str(fs_err)}")
+
 def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
     """在隔离的 Daytona Cloud 沙盒环境中执行 Python 代码。"""
     try:
@@ -105,11 +135,20 @@ def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
         # 会自动从环境变量中读取 DAYTONA_API_KEY 和 DAYTONA_API_URL
         daytona = Daytona()
 
-        # 2. 定义预制镜像以避免每次运行临时下载库
+        # 2. 定义预制镜像以避免每次运行临时下载库并对齐 /workspace 工作目录
+        # 预装 ffmpeg, librsvg2-bin, poppler-utils 等格式转换与文档提取系统工具，以及 Pillow, cairosvg, moviepy 等 Python 库
         custom_image = (
             Image.debian_slim("3.11")
-            .pip_install(["pandas", "openpyxl", "python-docx", "pdfplumber", "matplotlib"])
-            .workdir("/home/daytona")
+            .run_commands(
+                "apt-get update",
+                "apt-get install -y --no-install-recommends ffmpeg librsvg2-bin poppler-utils libcairo2-dev build-essential pkg-config libffi-dev",
+                "rm -rf /var/lib/apt/lists/*"
+            )
+            .pip_install([
+                "pandas", "openpyxl", "python-docx", "pdfplumber", "matplotlib",
+                "cairosvg", "Pillow", "svglib", "pdf2image", "python-pptx", "requests", "jinja2", "pypdf", "moviepy"
+            ])
+            .workdir("/workspace")
         )
 
         # 3. 动态创建挂载了预装工具库的安全 Python 沙盒
@@ -133,18 +172,9 @@ def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
             # Daytona 的 code_run 能直接接受 Python 脚本字符串
             exec_result = sandbox.process.code_run(code)
 
-            # 5. 从沙盒下载所有新生成或修改后的文件回本地宿主机 workspace 目录
+            # 5. 从沙盒递归下载所有新生成或修改后的文件回本地宿主机 workspace 目录，保留多级子文件夹目录结构
             try:
-                remote_files = sandbox.fs.list_files("./")
-                for file_info in remote_files:
-                    remote_filename = file_info.name
-                    # 排除目录和隐藏文件
-                    if not file_info.is_dir and not remote_filename.startswith("."):
-                        local_filepath = os.path.join(workspace_dir, remote_filename)
-                        try:
-                            sandbox.fs.download_file(f"./{remote_filename}", local_filepath)
-                        except Exception as download_err:
-                            print(f"[Daytona] Failed to download file {remote_filename} from sandbox: {str(download_err)}")
+                _download_dir_recursive(sandbox, "./", workspace_dir)
             except Exception as fs_err:
                 print(f"[Daytona] Failed to sync files back from sandbox: {str(fs_err)}")
 
