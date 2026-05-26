@@ -2238,7 +2238,9 @@ function WeChatManagementView() {
     try {
       const hr = new Date(h.created_at).getHours();
       hourCounts[hr]++;
-    } catch {}
+    } catch (err) {
+      console.warn(err);
+    }
   });
   let peakHour = 0;
   let maxCount = 0;
