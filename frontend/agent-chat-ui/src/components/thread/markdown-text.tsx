@@ -153,19 +153,11 @@ function MarkdownImage({
       <a
         href={resolvedSrc}
         download={alt || "download-image.png"}
-        className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg)] text-[var(--umx-text-dim)] opacity-0 transition-all duration-200 group-hover/img:opacity-100 hover:text-[var(--umx-acid)] hover:scale-105"
+        className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg)] text-[var(--umx-text-dim)] opacity-0 transition-all duration-200 group-hover/img:opacity-100 hover:text-[var(--umx-acid)] hover:scale-110 shadow-lg"
         title="Download Image"
       >
-        <Download className="h-3 w-3" />
+        <Download className="h-5 w-5" />
       </a>
-      {/* Light/Dark toggle — visible on hover */}
-      <button
-        type="button"
-        onClick={() => setBgMode((m) => (m === "light" ? "dark" : "light"))}
-        className="absolute right-2 top-2 rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--umx-text-dim)] opacity-0 transition-opacity group-hover/img:opacity-100"
-      >
-        {isLight ? "◐ DARK" : "◑ LIGHT"}
-      </button>
     </span>
   );
 }
