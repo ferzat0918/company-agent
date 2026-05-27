@@ -1,0 +1,775 @@
+Created At: 2026-05-26T08:36:19Z
+Completed At: 2026-05-26T08:36:19Z
+The following changes were made by the replace_file_content tool to: C:\Users\lenovo\company-agent\frontend\agent-chat-ui\src\app\admin\page.tsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -1891,81 +1891,7 @@
+         )}
+       </AnimatePresence>
+ 
+-      {/* Floating Bulk Action Deck */}
+-      <AnimatePresence>
+-        {selectedIds.length > 0 && activeTab === "feedback" && (
+-          <motion.div
+-            initial={{ y: 50, opacity: 0, x: "-50%" }}
+-            animate={{ y: 0, opacity: 1, x: "-50%" }}
+-            exit={{ y: 50, opacity: 0, x: "-50%" }}
+-            className="fixed bottom-8 left-1/2 z-40 flex items-center gap-4 border border-[var(--umx-acid)] bg-black/95 px-6 py-4 shadow-xl shadow-black/80"
+-            style={{ borderRadius: "2px" }}
+-          >
+-            <div className="flex items-center gap-2 border-r border-[var(--umx-line)] pr-4 font-mono text-[10px]">
+-              <span className="text-[var(--umx-acid)] font-bold">🗳️ SELECTED:</span>
+-              <span className="text-white font-bold">{selectedIds.length}</span>
+-            </div>
+-
+-            <div className="flex items-center gap-2">
+-              <span className="font-mono text-[8px] text-[var(--umx-text-dim)] uppercase tracking-wider">批量状态更新:</span>
+-              <div className="flex gap-1.5">
+-                {STATUSES.map((s) => (
+-                  <button
+-                    key={s.value}
+-                    onClick={() => handleBatchStatusChange(s.value)}
+-                    className="px-2 py-1 border border-transparent hover:border-white font-mono text-[9px] uppercase tracking-wider text-white transition-colors"
+-                    style={{ background: s.bg, color: s.color, borderRadius: "2px" }}
+-                  >
+-                    {s.label}
+-                  </button>
+-                ))}
+-              </div>
+-            </div>
+-
+-            <div className="flex items-center gap-2 border-l border-[var(--umx-line)] pl-4">
+-              {confirmBatchDelete ? (
+-                <div className="flex items-center gap-1.5">
+-                  <button
+-                    onClick={handleBatchDelete}
+-                    className="font-mono text-[9px] font-bold text-[#ff6b6b] hover:text-white uppercase transition-colors"
+-                  >
+-                    确认删除
+-                  </button>
+-                  <button
+-                    onClick={() => setConfirmBatchDelete(false)}
+-                    className="font-mono text-[9px] text-[var(--umx-text-dim)] hover:text-white uppercase transition-colors"
+-                  >
+-                    取消
+-                  </button>
+-                </div>
+-              ) : (
+-                <button
+-                  onClick={() => setConfirmBatchDelete(true)}
+-                  className="flex items-center gap-1 font-mono text-[9px] text-[#ff6b6b] hover:text-white uppercase transition-colors"
+-                >
+-                  <Trash2 className="size-3" />
+-                  批量删除
+-                </button>
+-              )}
+-            </div>
+-
+-            <button
+-              onClick={() => setSelectedIds([])}
+-              className="flex size-5 items-center justify-center border border-[var(--umx-line)] hover:border-white text-[var(--umx-text-dim)] hover:text-white transition-colors"
+-              style={{ borderRadius: "2px" }}
+-            >
+-              <X className="size-3" />
+-            </button>
+-          </motion.div>
+-        )}
+-      </AnimatePresence>
+-    </main>
+-  );
+-}
+-
+-/* ── WeChat RPA Management Dashboard ────────────────────────────── */
+-
+-function WeChatManagementView() {
++      function WeChatManagementView() {
+   const [status, setStatus] = useState<WeChatStatusRow | null>(null);
+   const [settings, setSettings] = useState<WeChatSettingsRow | null>(null);
+   const [history, setHistory] = useState<WeChatHistoryRow[]>([]);
+@@ -1977,6 +1977,14 @@
+   const [controlLoading, setControlLoading] = useState(false);
+   const [controlError, setControlError] = useState<string | null>(null);
+ 
++  // New settings configurations
++  const [systemPrompt, setSystemPrompt] = useState("你是一个温暖专业的AI助理。请用简洁、亲和的语调进行微信回复，多使用 Emoji。");
++  const [replyDelay, setReplyDelay] = useState(1);
++  const [groupAtOnly, setGroupAtOnly] = useState(true);
++  const [filePushEnabled, setFilePushEnabled] = useState(true);
++  const [savingRules, setSavingRules] = useState(false);
++  const [rulesSuccess, setRulesSuccess] = useState(false);
++
+   const fetchWeChatData = useCallback(async () => {
+     try {
+       const { data: settingsData } = await supabase
+@@ -1987,6 +1987,10 @@
+       if (settingsData) {
+         setSettings(settingsData);
+         setIsBotActive(settingsData.is_active);
++        setSystemPrompt(settingsData.system_prompt || "你是一个温暖专业的AI助理。请用简洁、亲和的语调进行微信回复，多使用 Emoji。");
++        setReplyDelay(settingsData.reply_delay ?? 1);
++        setGroupAtOnly(settingsData.group_at_only ?? true);
++        setFilePushEnabled(settingsData.file_push_enabled ?? true);
+         if (settingsData.listen_chats.trim()) {
+           setListenChatsList(settingsData.listen_chats.split(",").map((x: string) => x.trim()));
+         } else {
+@@ -2047,6 +2047,30 @@
+     setSavingSettings(false);
+   };
+ 
++  const handleSaveRules = async () => {
++    setSavingRules(true);
++    setRulesSuccess(false);
++    const { error } = await supabase
++      .from("wechat_settings")
++      .update({
++        system_prompt: systemPrompt,
++        reply_delay: replyDelay,
++        group_at_only: groupAtOnly,
++        file_push_enabled: filePushEnabled,
++        updated_at: new Date().toISOString()
++      })
++      .eq("id", "default");
++
++    if (!error) {
++      setRulesSuccess(true);
++      setTimeout(() => setRulesSuccess(false), 3000);
++      fetchWeChatData();
++    } else {
++      console.error("Failed to save rules:", error);
++    }
++    setSavingRules(false);
++  };
++
+   const handleAddChat = () => {
+     const trimmed = newChatName.trim();
+     if (trimmed && !listenChatsList.includes(trimmed)) {
+@@ -2119,6 +2119,33 @@
+ 
+   const isOnline = status?.client_status === "online" && isHeartbeatAlive();
+ 
++  // Calculated dynamic metrics
++  const totalReplies = history.length;
++  const successReplies = history.filter(h => h.status === "success").length;
++  const successRate = totalReplies > 0 ? Math.round((successReplies / totalReplies) * 100) : 100;
++  
++  const processedReplies = history.filter(h => h.elapsed_time > 0);
++  const avgThinkingTime = processedReplies.length > 0
++    ? (processedReplies.reduce((sum, h) => sum + h.elapsed_time, 0) / processedReplies.length)
++    : 0;
++  
++  const hourCounts = Array(24).fill(0);
++  history.forEach(h => {
++    try {
++      const hr = new Date(h.created_at).getHours();
++      hourCounts[hr]++;
++    } catch {}
++  });
++  let peakHour = 0;
++  let maxCount = 0;
++  for (let i = 0; i < 24; i++) {
++    if (hourCounts[i] > maxCount) {
++      maxCount = hourCounts[i];
++      peakHour = i;
++    }
++  }
++  const activeWindowStr = maxCount > 0 ? `${String(peakHour).padStart(2, "0")}:00 - ${String((peakHour + 1) % 24).padStart(2, "0")}:00` : "暂无数据";
++
+   return (
+     <div className="space-y-6">
+       {/* 1. Header Metrics Card Grid */}
+@@ -2146,15 +2146,30 @@
+             </p>
+           </div>
+           
+-          <div className="mt-4 pt-3 border-t border-[var(--umx-line)]/50">
++          <div className="mt-4 pt-3 border-t border-[var(--umx-line)]/50 space-y-2">
+             {isOnline ? (
+-              <span className="block font-mono text-[8px] text-[var(--umx-acid)] uppercase text-center bg-[var(--umx-acid)]/5 border border-[var(--umx-acid)]/20 py-1.5" style={{ borderRadius: "2px" }}>
+-                ✓ LOCAL DAEMON ACTIVE
+-              </span>
+-            ) : (
+-              <span className="block font-mono text-[8px] text-[var(--umx-text-dim)] uppercase text-center bg-white/5 border border-white/10 py-1.5" style={{ borderRadius: "2px" }} title="请在本地终端运行 python wechat_rpa_v4.py 启动进程">
+-                💡 RUN `python wechat_rpa_v4.py` ON HOST
+-              </span>
++              <button
++                onClick={() => handleRpaControl("stop")}
++                disabled={controlLoading}
++                className="w-full font-mono text-[9px] text-white hover:text-black uppercase text-center bg-red-600/20 hover:bg-red-500 border border-red-500/30 py-1.5 transition-all"
++                style={{ borderRadius: "2px" }}
++              >
++                {controlLoading ? "PROCESSING..." : "停止托管进程 (STOP)"}
++              </button>
++            ) : (
++              <button
++                onClick={() => handleRpaControl("start")}
++                disabled={controlLoading}
++                className="w-full font-mono text-[9px] text-black hover:text-white uppercase text-center bg-[var(--umx-acid)] hover:bg-transparent border border-[var(--umx-acid)] py-1.5 transition-all font-bold"
++                style={{ borderRadius: "2px" }}
++              >
++                {controlLoading ? "启动托管进程 (START)" : "启动托管进程 (START)"}
++              </button>
++            )}
++            {controlError && (
++              <p className="font-mono text-[8px] text-[#ff6b6b] text-center mt-1 leading-snug">
++                ⚠️ {controlError}
++              </p>
+             )}
+           </div>
+         </div>
+@@ -2161,154 +2161,330 @@
+         {/* Bound Account Card */}
+-        <div className="border border-[var(--umx-line)] p-5 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.01)" }}>
+-          <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)]">WeChat Client Nickname</span>
+-          <div className="flex items-baseline gap-2 mt-3">
+-            <h3 className="font-display text-xl font-bold tracking-wide truncate max-w-full text-white">
+-              {isOnline && status?.wechat_nickname ? status.wechat_nickname : "未绑定"}
+-            </h3>
+-          </div>
+-          <p className="font-mono text-[9px] text-[var(--umx-text-dim)] mt-3">
+-            {isOnline ? "成功挂载 PC 微信 GUI 窗口" : "进程未启动或窗口丢失"}
+-          </p>
+-        </div>
+-
+-        {/* AI Workers Card */}
+-        <div className="border border-[var(--umx-line)] p-5 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.01)" }}>
+-          <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)]">AI Workers (Thread Pool)</span>
+-          <div className="flex items-baseline gap-2 mt-3">
+-            <h3 className="font-display text-2xl font-bold uppercase tracking-wider text-white">
+-              {isOnline ? `${status?.active_workers} / 5` : "0 / 0"}
+-            </h3>
+-          </div>
+-          <p className="font-mono text-[9px] text-[var(--umx-text-dim)] mt-2">
+-            {isOnline && status?.active_workers && status.active_workers > 0 ? "大模型正在深度思考中" : "线程空闲 · 等待新消息"}
+-          </p>
++        <div className="border border-[var(--umx-line)] p-5 relative overflow-hidden flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.01)" }}>
++          <div>
++            <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)]">WeChat Client Nickname</span>
++            <div className="flex items-baseline gap-2 mt-3">
++              <h3 className="font-display text-xl font-bold tracking-wide truncate max-w-full text-white">
++                {isOnline && status?.wechat_nickname ? status.wechat_nickname : "未绑定"}
++              </h3>
++            </div>
++            <p className="font-mono text-[9px] text-[var(--umx-text-dim)] mt-3">
++              {isOnline ? "成功挂载 PC 微信 GUI 窗口" : "进程未启动或窗口丢失"}
++            </p>
++          </div>
++          <div className="mt-4 pt-3 border-t border-[var(--umx-line)]/50">
++            <span className="block font-mono text-[8px] text-[var(--umx-text-dim)] uppercase text-center bg-white/5 border border-white/10 py-1.5" style={{ borderRadius: "2px" }}>
++              {isOnline ? "PID: 微信主窗口监听中" : "STATUS: 离线"}
++            </span>
++          </div>
++        </div>
++
++        {/* Analytics Card 1 */}
++        <div className="border border-[var(--umx-line)] p-5 relative overflow-hidden flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.01)" }}>
++          <div>
++            <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)]">Total Replies & Efficiency</span>
++            <div className="flex items-baseline gap-2 mt-3">
++              <h3 className="font-display text-2xl font-bold uppercase tracking-wider text-white">
++                {totalReplies} 次回复
++              </h3>
++            </div>
++            <p className="font-mono text-[9px] text-[var(--umx-text-dim)] mt-2">
++              平均思考响应时间: <span className="text-[var(--umx-acid)] font-bold">{avgThinkingTime.toFixed(1)}s</span>
++            </p>
++          </div>
++          <div className="mt-4 pt-3 border-t border-[var(--umx-line)]/50">
++            <span className="block font-mono text-[8px] text-white/60 uppercase text-center bg-white/5 border border-white/10 py-1.5" style={{ borderRadius: "2px" }}>
++              活跃波峰: {activeWindowStr}
++            </span>
++          </div>
+         </div>
+ 
+         {/* Auto Reply Mode Card */}
+-        <div className="border border-[var(--umx-line)] p-5 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.01)" }}>
+-          <div className="flex items-center justify-between mb-1">
+-            <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)]">Auto Reply Toggle</span>
+-            <button
+-              onClick={handleToggleBot}
+-              disabled={savingSettings}
+-              className={`font-mono text-[9px] px-2 py-0.5 border ${
+-                isBotActive 
+-                  ? "border-[var(--umx-acid)] text-[var(--umx-acid)] bg-[var(--umx-acid)]/10" 
+-                  : "border-[var(--umx-line)] text-[var(--umx-text-dim)]"
+-              } transition-all uppercase`}
+-              style={{ borderRadius: "2px" }}
+-            >
+-              {savingSettings ? "SAVING..." : isBotActive ? "ACTIVE" : "PAUSED"}
+-            </button>
+-          </div>
+-          <div className="flex items-baseline gap-2 mt-3">
+-            <h3 className="font-display text-xl font-bold uppercase tracking-wider text-white">
+-              {isBotActive ? "智能自动回复中" : "已暂停托管"}
+-            </h3>
+-          </div>
+-          <p className="font-mono text-[9px] text-[var(--umx-text-dim)] mt-2">
+-            {isBotActive ? "实时匹配监听白名单" : "微信好友消息将不受机器干扰"}
+-          </p>
+-        </div>
+-      </div>
+-
+-      {/* 2. Middle Section: Whitelist Control & Log Console */}
+-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+-        {/* Whitelist Manager */}
+-        <div className="lg:col-span-1 border border-[var(--umx-line)] p-6 flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.01)" }}>
+-          <div>
+-            <div className="flex items-center gap-2 mb-4 border-b border-[var(--umx-line)] pb-3">
+-              <MessageSquare className="size-4 text-[var(--umx-acid)]" />
+-              <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">监听聊天名单 (Whitelist)</h3>
+-            </div>
+-            
+-            <p className="font-mono text-[10px] text-[var(--umx-text-dim)] mb-4 leading-relaxed">
+-              微信 RPA 仅会针对以下白名单中的群聊全称或好友备注名进行回复。如果列表为空，微信 RPA 进程将运行在<strong>全局智能回复监听模式</strong>（⚠️ 回复所有人！）。
+-            </p>
+-
+-            <div className="flex flex-wrap gap-2 mb-4 max-h-[220px] overflow-y-auto pr-1">
+-              {listenChatsList.length === 0 ? (
+-                <span className="font-mono text-[9px] uppercase tracking-wider border border-[var(--umx-acid)]/30 text-[var(--umx-acid)] px-2.5 py-1" style={{ background: "rgba(218,252,8,0.02)", borderRadius: "2px" }}>
+-                  🌐 GLOBAL MODE — 全局监听回复
+-                </span>
+-              ) : (
+-                listenChatsList.map(chat => (
+-                  <span 
+-                    key={chat} 
+-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] text-white border border-[var(--umx-line)] bg-white/5"
+-                    style={{ borderRadius: "2px" }}
+-                  >
+-                    {chat}
+-                    <button 
+-                      onClick={() => handleRemoveChat(chat)}
+-                      disabled={savingSettings}
+-                      className="text-[var(--umx-text-dim)] hover:text-[#ff6b6b] transition-colors"
+-                    >
+-                      <X className="size-3" />
+-                    </button>
+-                  </span>
+-                ))
+-              )}
+-            </div>
+-          </div>
+-
+-          <div className="mt-4 pt-4 border-t border-[var(--umx-line)]">
+-            <div className="flex gap-2">
+-              <input
+-                type="text"
+-                value={newChatName}
+-                onChange={e => setNewChatName(e.target.value)}
+-                onKeyDown={e => e.key === "Enter" && handleAddChat()}
+-                placeholder="添加群聊全称或好友备注..."
++        <div className="border border-[var(--umx-line)] p-5 relative overflow-hidden flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.01)" }}>
++          <div>
++            <div className="flex items-center justify-between mb-1">
++              <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)]">Auto Reply Toggle</span>
++              <button
++                onClick={handleToggleBot}
+                 disabled={savingSettings}
+-                className="flex-1 bg-black/40 border border-[var(--umx-line)] px-3 py-2 font-mono text-[11px] text-white focus:border-white focus:outline-none placeholder:text-[var(--umx-text-dim)]"
+-                style={{ borderRadius: "2px" }}
+-              />
+-              <button
+-                onClick={handleAddChat}
+-                disabled={savingSettings || !newChatName.trim()}
+-                className="flex items-center justify-center border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] px-4 py-2 font-mono text-[10px] tracking-wider uppercase font-bold transition-all disabled:opacity-30"
+-                style={{ borderRadius: "2px" }}
+-              >
+-                添加
+-              </button>
+-            </div>
+-          </div>
+-        </div>
+-
+-        {/* Terminal/Log Console */}
+-        <div className="lg:col-span-2 border border-[var(--umx-line)] p-6" style={{ background: "rgba(255,255,255,0.01)" }}>
+-          <div className="flex items-center justify-between mb-4 border-b border-[var(--umx-line)] pb-3">
+-            <div className="flex items-center gap-2">
+-              <Terminal className="size-4 text-[var(--umx-acid)] animate-pulse" />
+-              <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">本地 RPA 进程控制台日志 (Live Logs)</h3>
+-            </div>
+-            <span className="font-mono text-[9px] text-[var(--umx-text-dim)] uppercase tracking-wider">
+-              {isOnline ? "🔴 心跳同步中 · 4s 轮询" : "⏳ 进程已离线"}
+-            </span>
+-          </div>
+-
+-          {/* Console Box */}
+-          <div className="bg-black/90 border border-[var(--umx-line)] p-4 font-mono text-[10px] text-[var(--umx-silver)] h-[290px] overflow-y-auto space-y-1.5 select-text selection:bg-[var(--umx-acid)] selection:text-black">
+-            {(!status?.system_logs || status.system_logs.length === 0) ? (
+-              <div className="flex items-center justify-center h-full text-[var(--umx-text-dim)] uppercase tracking-wider">
+-                WAITING FOR LIVE TELEMETRY LOGS STREAM...
+-              </div>
+-            ) : (
+-              status.system_logs.map((log, i) => {
+-                let colorClass = "text-[var(--umx-silver)]";
+-                if (log.includes("[ERROR]")) colorClass = "text-[#ff6b6b]";
+-                else if (log.includes("[WARNING]")) colorClass = "text-yellow-400";
+-                else if (log.includes("[思考开始]") || log.includes("触发AI思考")) colorClass = "text-cyan-400";
+-                else if (log.includes("[思考完成]") || log.includes("成功送达")) colorClass = "text-[var(--umx-acid)]";
++                className={`font-mono text-[9px] px-2 py-0.5 border ${
++                  isBotActive 
++                    ? "border-[var(--umx-acid)] text-[var(--umx-acid)] bg-[var(--umx-acid)]/10" 
++                    : "border-[var(--umx-line)] text-[var(--umx-text-dim)]"
++                } transition-all uppercase`}
++                style={{ borderRadius: "2px" }}
++              >
++                {savingSettings ? "SAVING..." : isBotActive ? "ACTIVE" : "PAUSED"}
++              </button>
++            </div>
++            <div className="flex items-baseline gap-2 mt-3">
++              <h3 className="font-display text-xl font-bold uppercase tracking-wider text-white">
++                {isBotActive ? "智能自动回复中" : "已暂停托管"}
++              </h3>
++            </div>
++            <p className="font-mono text-[9px] text-[var(--umx-text-dim)] mt-2">
++              回复成功率: <span className="text-[var(--umx-acid)] font-bold">{successRate}%</span>
++            </p>
++          </div>
++          <div className="mt-4 pt-3 border-t border-[var(--umx-line)]/50">
++            <span className="block font-mono text-[8px] text-white/60 uppercase text-center bg-white/5 border border-white/10 py-1.5" style={{ borderRadius: "2px" }}>
++              规则模式: {listenChatsList.length > 0 ? `${listenChatsList.length} 人白名单` : "全局托管模式"}
++            </span>
++          </div>
++        </div>
++      </div>
++
++      {/* 2. Middle Section: Whitelist Control, Config Form & Log Console */}
++      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
++        {/* Left Side: Whitelist & Rules Editor */}
++        <div className="lg:col-span-2 space-y-6">
++          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
++            {/* Whitelist Manager */}
++            <div className="border border-[var(--umx-line)] p-6 flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.01)" }}>
++              <div>
++                <div className="flex items-center gap-2 mb-4 border-b border-[var(--umx-line)] pb-3">
++                  <MessageSquare className="size-4 text-[var(--umx-acid)]" />
++                  <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">监听聊天名单 (Whitelist)</h3>
++                </div>
+                 
+-                return (
+-                  <div key={i} className={`leading-relaxed break-all ${colorClass}`}>
+-                    {log}
+-                  </div>
+-                );
+-              })
+-            )}
++                <p className="font-mono text-[10px] text-[var(--umx-text-dim)] mb-4 leading-relaxed">
++                  微信 RPA 仅会针对以下白名单中的群聊全称或好友备注名进行回复。如果列表为空，微信 RPA 进程将运行在<strong>全局智能回复监听模式</strong>（⚠️ 回复所有人！）。
++                </p>
++
++                <div className="flex flex-wrap gap-2 mb-4 max-h-[160px] overflow-y-auto pr-1">
++                  {listenChatsList.length === 0 ? (
++                    <span className="font-mono text-[9px] uppercase tracking-wider border border-[var(--umx-acid)]/30 text-[var(--umx-acid)] px-2.5 py-1" style={{ background: "rgba(218,252,8,0.02)", borderRadius: "2px" }}>
++                      🌐 GLOBAL MODE — 全局监听回复
++                    </span>
++                  ) : (
++                    listenChatsList.map(chat => (
++                      <span 
++                        key={chat} 
++                        className="inline-flex items-center gap-1.5 px-2.5 py-1 font-mono text-[10px] text-white border border-[var(--umx-line)] bg-white/5"
++                        style={{ borderRadius: "2px" }}
++                      >
++                        {chat}
++                        <button 
++                          onClick={() => handleRemoveChat(chat)}
++                          disabled={savingSettings}
++                          className="text-[var(--umx-text-dim)] hover:text-[#ff6b6b] transition-colors"
++                        >
++                          <X className="size-3" />
++                        </button>
++                      </span>
++                    ))
++                  )}
++                </div>
++              </div>
++
++              <div className="mt-4 pt-4 border-t border-[var(--umx-line)]">
++                <div className="flex gap-2">
++                  <input
++                    type="text"
++                    value={newChatName}
++                    onChange={e => setNewChatName(e.target.value)}
++                    onKeyDown={e => e.key === "Enter" && handleAddChat()}
++                    placeholder="添加群聊全称或好友备注..."
++                    disabled={savingSettings}
++                    className="flex-1 bg-black/40 border border-[var(--umx-line)] px-3 py-2 font-mono text-[11px] text-white focus:border-white focus:outline-none placeholder:text-[var(--umx-text-dim)]"
++                    style={{ borderRadius: "2px" }}
++                  />
++                  <button
++                    onClick={handleAddChat}
++                    disabled={savingSettings || !newChatName.trim()}
++                    className="flex items-center justify-center border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] px-4 py-2 font-mono text-[10px] tracking-wider uppercase font-bold transition-all disabled:opacity-30"
++                    style={{ borderRadius: "2px" }}
++                  >
++                    添加
++                  </button>
++                </div>
++              </div>
++            </div>
++
++            {/* AI & Automation Rules Config */}
++            <div className="border border-[var(--umx-line)] p-6 flex flex-col justify-between" style={{ background: "rgba(255,255,255,0.01)" }}>
++              <div>
++                <div className="flex items-center gap-2 mb-4 border-b border-[var(--umx-line)] pb-3">
++                  <Sparkles className="size-4 text-[var(--umx-acid)]" />
++                  <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">大模型及自动化策略</h3>
++                </div>
++
++                <div className="space-y-4">
++                  {/* Reply Delay Slider */}
++                  <div className="space-y-1.5">
++                    <div className="flex justify-between font-mono text-[9px]">
++                      <span className="text-[var(--umx-text-dim)] uppercase">回复延迟时间 (Reply Delay)</span>
++                      <span className="text-[var(--umx-acid)] font-bold">{replyDelay} 秒</span>
++                    </div>
++                    <div className="flex items-center gap-3">
++                      <input
++                        type="range"
++                        min="0"
++                        max="30"
++                        value={replyDelay}
++                        onChange={e => setReplyDelay(Number(e.target.value))}
++                        disabled={savingRules}
++                        className="flex-1 accent-[var(--umx-acid)] bg-neutral-850 h-1 rounded cursor-pointer"
++                      />
++                    </div>
++                  </div>
++
++                  {/* Group @-only Toggle */}
++                  <div className="flex items-center justify-between border-t border-[var(--umx-line)]/40 pt-3">
++                    <div>
++                      <span className="block font-mono text-[9px] uppercase text-white">群聊仅回复 @ 消息</span>
++                      <span className="block font-mono text-[7px] text-[var(--umx-text-dim)]">在群聊会话中，必须 @ 机器人时才自动回复</span>
++                    </div>
++                    <button
++                      onClick={() => setGroupAtOnly(!groupAtOnly)}
++                      disabled={savingRules}
++                      className={`flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border border-neutral-700 p-0.5 transition-colors ${
++                        groupAtOnly ? "bg-[var(--umx-acid)]" : "bg-neutral-900"
++                      }`}
++                    >
++                      <span
++                        className={`h-2.5 w-2.5 rounded-full bg-white transition-transform ${
++                          groupAtOnly ? "translate-x-4" : "translate-x-0"
++                        }`}
++                      />
++                    </button>
++                  </div>
++
++                  {/* File Push Toggle */}
++                  <div className="flex items-center justify-between border-t border-[var(--umx-line)]/40 pt-3">
++                    <div>
++                      <span className="block font-mono text-[9px] uppercase text-white">智能文件/图片推送</span>
++                      <span className="block font-mono text-[7px] text-[var(--umx-text-dim)]">支持大模型生成图片、文档时自动推送到微信</span>
++                    </div>
++                    <button
++                      onClick={() => setFilePushEnabled(!filePushEnabled)}
++                      disabled={savingRules}
++                      className={`flex h-4 w-8 shrink-0 cursor-pointer items-center rounded-full border border-neutral-700 p-0.5 transition-colors ${
++                        filePushEnabled ? "bg-[var(--umx-acid)]" : "bg-neutral-900"
++                      }`}
++                    >
++                      <span
++                        className={`h-2.5 w-2.5 rounded-full bg-white transition-transform ${
++                          filePushEnabled ? "translate-x-4" : "translate-x-0"
++                        }`}
++                      />
++                    </button>
++                  </div>
++                </div>
++              </div>
++
++              <div className="mt-6 pt-4 border-t border-[var(--umx-line)] flex items-center justify-between">
++                <span className="font-mono text-[8px] text-[var(--umx-acid)] uppercase">
++                  {rulesSuccess ? "✓ 已同步到本地" : ""}
++                </span>
++                <button
++                  onClick={handleSaveRules}
++                  disabled={savingRules}
++                  className="flex items-center justify-center border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] px-5 py-2 font-mono text-[10px] tracking-wider uppercase font-bold transition-all disabled:opacity-30"
++                  style={{ borderRadius: "2px" }}
++                >
++                  {savingRules ? "同步中..." : "保存AI策略"}
++                </button>
++              </div>
++            </div>
++          </div>
++
++          {/* System Prompt Code Pane */}
++          <div className="border border-[var(--umx-line)] p-6" style={{ background: "rgba(255,255,255,0.01)" }}>
++            <div className="flex items-center justify-between mb-4 border-b border-[var(--umx-line)] pb-3">
++              <div className="flex items-center gap-2">
++                <MessageSquareCode className="size-4 text-[var(--umx-acid)]" />
++                <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">大模型设定提示词 (System Prompt)</h3>
++              </div>
++              <span className="font-mono text-[8px] text-[var(--umx-text-dim)] uppercase">
++                IDE-Style System Instruction Editor
++              </span>
++            </div>
++
++            <div className="relative font-mono text-[11px] border border-[var(--umx-line)] bg-black/80">
++              {/* Terminal header */}
++              <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--umx-line)] bg-white/5 select-none">
++                <span className="text-white/40 text-[9px] uppercase tracking-wider font-bold">system_prompt.txt</span>
++                <span className="text-[var(--umx-acid)] text-[9px] uppercase font-bold">UTF-8</span>
++              </div>
++              <textarea
++                value={systemPrompt}
++                onChange={e => setSystemPrompt(e.target.value)}
++                disabled={savingRules}
++                className="w-full min-h-[120px] bg-black/30 p-4 text-white focus:outline-none font-mono text-[11px] leading-relaxed resize-y focus:bg-black/40"
++                placeholder="在此输入机器人的大模型 System Prompt 设定..."
++              />
++            </div>
++            
++            <div className="mt-4 flex items-center justify-between">
++              <p className="font-mono text-[8.5px] text-[var(--umx-text-dim)] leading-relaxed max-w-[70%]">
++                💡 设定将实时写入 Supabase，守护进程检测到配置变更后无需重启即可动态生效。
++              </p>
++              <button
++                onClick={handleSaveRules}
++                disabled={savingRules}
++                className="flex items-center justify-center border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] px-6 py-2.5 font-mono text-[10px] tracking-widest uppercase font-bold transition-all disabled:opacity-30"
++                style={{ borderRadius: "2px" }}
++              >
++                {savingRules ? "保存中..." : "保存提示词"}
++              </button>
++            </div>
++          </div>
++        </div>
++
++        {/* Right Side: Terminal/Log Console */}
++        <div className="lg:col-span-1 flex flex-col">
++          <div className="border border-[var(--umx-line)] p-6 flex flex-col h-full justify-between" style={{ background: "rgba(255,255,255,0.01)" }}>
++            <div className="flex flex-col h-full">
++              <div className="flex items-center justify-between mb-4 border-b border-[var(--umx-line)] pb-3">
++                <div className="flex items-center gap-2">
++                  <Terminal className="size-4 text-[var(--umx-acid)] animate-pulse" />
++                  <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">运行日志终端</h3>
++                </div>
++                <span className="font-mono text-[9px] text-[var(--umx-text-dim)] uppercase tracking-wider">
++                  {isOnline ? "🔴 4s 心跳轮询" : "⏳ 进程已离线"}
++                </span>
++              </div>
++
++              {/* Console Box */}
++              <div className="bg-black/90 border border-[var(--umx-line)] p-4 font-mono text-[10px] text-[var(--umx-silver)] flex-1 min-h-[300px] max-h-[460px] overflow-y-auto space-y-1.5 select-text selection:bg-[var(--umx-acid)] selection:text-black">
++                {(!status?.system_logs || status.system_logs.length === 0) ? (
++                  <div className="flex items-center justify-center h-full text-[var(--umx-text-dim)] uppercase tracking-wider text-center">
++                    WAITING FOR LIVE TELEMETRY LOGS STREAM...
++                  </div>
++                ) : (
++                  status.system_logs.map((log, i) => {
++                    let colorClass = "text-[var(--umx-silver)]";
++                    if (log.includes("[ERROR]")) colorClass = "text-[#ff6b6b]";
++                    else if (log.includes("[WARNING]")) colorClass = "text-yellow-400";
++                    else if (log.includes("[思考开始]") || log.includes("触发AI思考")) colorClass = "text-cyan-400";
++                    else if (log.includes("[思考完成]") || log.includes("成功送达")) colorClass = "text-[var(--umx-acid)]";
++                    
++                    return (
++                      <div key={i} className={`leading-relaxed break-all ${colorClass}`}>
++                        {log}
++                      </div>
++                    );
++                  })
++                )}
++              </div>
++            </div>
++
++            <div className="mt-4 pt-4 border-t border-[var(--umx-line)] flex items-center justify-between">
++              <span className="font-mono text-[8px] text-[var(--umx-text-dim)]">
++                TELEMETRY ACTIVE
++              </span>
++              <button 
++                onClick={() => {
++                  if (status) {
++                    setStatus({ ...status, system_logs: [] });
++                  }
++                }}
++                className="font-mono text-[8px] text-[var(--umx-text-dim)] hover:text-white uppercase tracking-wider border border-[var(--umx-line)] px-2 py-1 transition-colors"
++                style={{ borderRadius: "2px" }}
++              >
++                CLEAR CONSOLE
++              </button>
++            </div>
+           </div>
+         </div>
+       </div>
+@@ -2403,6 +2403,78 @@
+ interface WeChatSettingsRow {
+   listen_chats: string;
+   is_active: boolean;
++  system_prompt: string;
++  reply_delay: number;
++  group_at_only: boolean;
++  file_push_enabled: boolean;
++} border-[var(--umx-line)] bg-white/[0.01] select-none">
++                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)] w-[12%]">时间</th>
++                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)] w-[15%]">会话窗口</th>
++                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)] w-[10%]">发言人</th>
++                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)] w-[25%]">收到的消息</th>
++                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)] w-[25%]">AI 的自动回复</th>
++                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)] w-[8%]">耗时</th>
++                  <th className="px-4 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)] w-[5%]">状态</th>
++                </tr>
++              </thead>
++              <tbody className="divide-y divide-[var(--umx-line)]">
++                {history.map((row) => (
++                  <tr key={row.id} className="hover:bg-white/[0.01] transition-colors">
++                    <td className="px-4 py-3.5 font-mono text-[10px] text-[var(--umx-text-dim)]">
++                      {new Date(row.created_at).toLocaleString("zh-CN", { hour12: false })}
++                    </td>
++                    <td className="px-4 py-3.5 font-mono text-[11px] text-white font-bold truncate max-w-[120px]">
++                      {row.chat_name}
++                    </td>
++                    <td className="px-4 py-3.5 font-mono text-[10px] text-[var(--umx-silver)] truncate max-w-[100px]">
++                      {row.sender}
++                    </td>
++                    <td className="px-4 py-3.5 font-mono text-[10px] text-[var(--umx-text-dim)] max-w-[200px] truncate" title={row.message}>
++                      {row.message}
++                    </td>
++                    <td className="px-4 py-3.5 font-mono text-[10px] text-white max-w-[200px] truncate" title={row.response}>
++                      {row.response}
++                    </td>
++                    <td className="px-4 py-3.5 font-mono text-[10px]">
++                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-[var(--umx-line)] text-[var(--umx-silver)]" style={{ borderRadius: "2px" }}>
++                        <Timer className="size-2.5" />
++                        {formatElapsed(row.elapsed_time)}
++                      </span>
++                    </td>
++                    <td className="px-4 py-3.5">
++                      {row.status === "success" ? (
++                        <span className="inline-flex items-center px-1.5 py-0.5 font-mono text-[9px] border border-[var(--umx-acid)]/30 text-[var(--umx-acid)] bg-[var(--umx-acid)]/10" style={{ borderRadius: "2px" }}>
++                          SUCCESS
++                        </span>
++                      ) : (
++                        <span className="inline-flex items-center px-1.5 py-0.5 font-mono text-[9px] border border-red-500/30 text-[#ff6b6b] bg-red-500/10" style={{ borderRadius: "2px" }}>
++                          ERROR
++                        </span>
++                      )}
++                    </td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          )}
++        </div>
++      </div>
++    </div>
++  );
++}
++
++interface WeChatStatusRow {
++  client_status: string;
++  last_heartbeat: string | null;
++  wechat_nickname: string;
++  active_workers: number;
++  system_logs: string[];
++  updated_at: string;
++}
++
++interface WeChatSettingsRow {
++  listen_chats: string;
++  is_active: boolean;
+ }
+ 
+ interface WeChatHistoryRow {
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
