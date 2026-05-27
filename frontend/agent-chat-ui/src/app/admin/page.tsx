@@ -1460,6 +1460,18 @@ function AdminContent() {
   const handleSaveChangelog = async () => {
     if (!changelogVersion || !changelogTitle || !changelogContent) return;
     setSavingChangelog(true);
+
+    // 检查版本号唯一性，防止触发数据库唯一索引冲突
+    const normalizedVersion = changelogVersion.trim().toLowerCase();
+    const duplicateEntry = changelogs.find(
+      (item) => item.version.trim().toLowerCase() === normalizedVersion && (!selectedChangelog || item.id !== selectedChangelog.id)
+    );
+
+    if (duplicateEntry) {
+      alert(`✗ 保存失败: 版本号「${changelogVersion.trim()}」已经存在！\n\n温馨提示：版本号必须是唯一的。如果您想修改该版本的内容，请在左侧的版本列表中选中它（如 ${duplicateEntry.version}）进行编辑，而不要点击「新增版本」。`);
+      setSavingChangelog(false);
+      return;
+    }
     
     const payload = {
       version: changelogVersion.trim(),
@@ -1508,6 +1520,7 @@ function AdminContent() {
       setSavingChangelog(false);
     }
   };
+
 
   const handleDeleteChangelog = async () => {
     if (!selectedChangelog) return;
