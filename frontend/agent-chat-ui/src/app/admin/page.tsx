@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Bug, Lightbulb, Clock, Paperclip, Search,
@@ -18,13 +19,20 @@ import { UmxSymbol, UmxWordmark } from "@/components/icons/umx-logo";
 import { LoginPage } from "@/components/LoginPage";
 import type { AttachmentMeta } from "@/components/FeedbackModal";
 
-/* ── Config ────────────────────────────────────────────────────── */
+const ChangelogRenderer = dynamic(() => import("@/components/ChangelogRenderer"), {
+  ssr: false,
+  loading: () => (
+    <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">
+      GENERATING PREVIEW...
+    </p>
+  ),
+});
 
+/* ── Config ────────────────────────────────────────────────────── */
 const ADMIN_EMAILS = [
   "freddyferzat@gmail.com",
-];
-
-const REJECTED_TTL_DAYS = 30;
+  "1013012714@qq.com",
+];const REJECTED_TTL_DAYS = 30;
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -1166,7 +1174,7 @@ function AdminContent() {
   const [selectedItem, setSelectedItem] = useState<FeedbackRow | null>(null);
 
   /* User management state */
-  const [activeTab, setActiveTab] = useState<"feedback" | "users" | "wechat">("feedback");
+  const [activeTab, setActiveTab] = useState<"feedback" | "users" | "wechat" | "changelog">("feedback");
   const [usersData, setUsersData] = useState<UserViewRow[]>([]);
   const [userLoading, setUserLoading] = useState(true);
   const [userSearchQuery, setUserSearchQuery] = useState("");
@@ -1175,10 +1183,21 @@ function AdminContent() {
   const [userSortByDate, setUserSortByDate] = useState<"desc" | "asc">("desc");
   const [selectedUser, setSelectedUser] = useState<UserViewRow | null>(null);
 
+  /* Changelog management state */
+  const [changelogs, setChangelogs] = useState<any[]>([]);
+  const [changelogLoading, setChangelogLoading] = useState(true);
+  const [changelogSearchQuery, setChangelogSearchQuery] = useState("");
+  const [selectedChangelog, setSelectedChangelog] = useState<any | null>(null);
+  const [changelogVersion, setChangelogVersion] = useState("");
+  const [changelogTitle, setChangelogTitle] = useState("");
+  const [changelogDate, setChangelogDate] = useState("");
+  const [changelogContent, setChangelogContent] = useState("");
+  const [isPreview, setIsPreview] = useState(false);
+  const [savingChangelog, setSavingChangelog] = useState(false);
+
   /* Dev tools state */
   const [devOpen, setDevOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
-
   const fetchData = useCallback(async () => {
     const { data, error } = await supabase
       .from("feedback")
@@ -1197,10 +1216,25 @@ function AdminContent() {
     setUserLoading(false);
   }, []);
 
+  // 从数据库动态拉取所有更新日志记录
+  const fetchChangelogs = useCallback(async () => {
+    setChangelogLoading(true);
+    const { data, error } = await supabase
+      .from("changelog_entries")
+      .select("*")
+      .order("release_date", { ascending: false })
+      .order("version", { ascending: false });
+    if (!error && data) {
+      setChangelogs(data);
+    }
+    setChangelogLoading(false);
+  }, []);
+
   useEffect(() => {
     fetchData();
     fetchUsers();
-  }, [fetchData, fetchUsers]);
+    fetchChangelogs();
+  }, [fetchData, fetchUsers, fetchChangelogs]);
 
   const handleStatusChange = (id: string, newStatus: string) => {
     setItems((prev) =>
@@ -1405,6 +1439,103 @@ function AdminContent() {
     );
   };
 
+  /* 更新日志相关的 CRUD 处理逻辑（含中文友好反馈） */
+  const filteredChangelogs = changelogs.filter((item) => {
+    if (changelogSearchQuery) {
+      const q = changelogSearchQuery.toLowerCase();
+      return (
+        item.version.toLowerCase().includes(q) ||
+        item.title.toLowerCase().includes(q) ||
+        item.content.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.release_date).getTime();
+    const dateB = new Date(b.release_date).getTime();
+    if (dateA !== dateB) return dateB - dateA;
+    return b.version.localeCompare(a.version);
+  });
+
+  const handleSaveChangelog = async () => {
+    if (!changelogVersion || !changelogTitle || !changelogContent) return;
+    setSavingChangelog(true);
+    
+    const payload = {
+      version: changelogVersion.trim(),
+      title: changelogTitle.trim(),
+      release_date: changelogDate || new Date().toISOString().split("T")[0],
+      content: changelogContent,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      if (selectedChangelog) {
+        // 更新现有版本日志
+        const { error } = await supabase
+          .from("changelog_entries")
+          .update(payload)
+          .eq("id", selectedChangelog.id);
+        
+        if (!error) {
+          setChangelogs((prev) =>
+            prev.map((item) =>
+              item.id === selectedChangelog.id ? { ...item, ...payload } : item
+            )
+          );
+          alert("✓ 更新日志修改并保存成功！");
+        } else {
+          alert(`✗ 保存失败: ${error.message}`);
+        }
+      } else {
+        // 发布全新版本日志
+        const { data, error } = await supabase
+          .from("changelog_entries")
+          .insert([{ ...payload, created_at: new Date().toISOString() }])
+          .select();
+        
+        if (!error && data && data.length > 0) {
+          setChangelogs((prev) => [data[0], ...prev]);
+          setSelectedChangelog(data[0]);
+          alert("✓ 全新更新日志发布成功！");
+        } else {
+          alert(`✗ 发布失败: ${error?.message || "未知版本冲突，请检查版本号是否唯一"}`);
+        }
+      }
+    } catch (err) {
+      alert(`✗ 系统通信异常: ${err}`);
+    } finally {
+      setSavingChangelog(false);
+    }
+  };
+
+  const handleDeleteChangelog = async () => {
+    if (!selectedChangelog) return;
+    const confirm = window.confirm(`警告：您确定要彻底从数据库中删除 ${selectedChangelog.version} 版本的更新日志吗？此操作无法撤销！`);
+    if (!confirm) return;
+    
+    try {
+      const { error } = await supabase
+        .from("changelog_entries")
+        .delete()
+        .eq("id", selectedChangelog.id);
+      
+      if (!error) {
+        setChangelogs((prev) => prev.filter((item) => item.id !== selectedChangelog.id));
+        setSelectedChangelog(null);
+        setChangelogVersion("");
+        setChangelogTitle("");
+        setChangelogDate(new Date().toISOString().split("T")[0]);
+        setChangelogContent("");
+        alert("✓ 成功删除该版本日志记录！");
+      } else {
+        alert(`✗ 删除失败: ${error.message}`);
+      }
+    } catch (err) {
+      alert(`✗ 异常错误: ${err}`);
+    }
+  };
+
   /* Mock Data Generator Helper */
   const generateMockData = async () => {
     setGenerating(true);
@@ -1490,6 +1621,21 @@ function AdminContent() {
           >
             <span>USER PROFILE MANAGEMENT</span>
             {activeTab === "users" && (
+              <motion.div
+                layoutId="activeTabUnderline"
+                className="absolute bottom-[-1px] left-0 h-[2px] bg-[var(--umx-acid)]"
+                style={{ width: "calc(100% - 32px)" }}
+              />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("changelog")}
+            className={`relative pb-4 pr-8 font-display text-xs font-bold uppercase tracking-[0.2em] transition-colors ${
+              activeTab === "changelog" ? "text-white" : "text-[var(--umx-text-dim)] hover:text-white"
+            }`}
+          >
+            <span>CHANGELOG MANAGEMENT</span>
+            {activeTab === "changelog" && (
               <motion.div
                 layoutId="activeTabUnderline"
                 className="absolute bottom-[-1px] left-0 h-[2px] bg-[var(--umx-acid)]"
@@ -1846,8 +1992,234 @@ function AdminContent() {
               )}
             </div>
           </>
-        )
-      }
+        )}
+
+        {activeTab === "changelog" && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* 左侧列表：管理所有日志版本 */}
+            <div className="lg:col-span-1 border border-[var(--umx-line)] p-6 bg-black/20" style={{ borderRadius: "2px" }}>
+              <div className="flex items-center justify-between mb-6 pb-3 border-b border-[var(--umx-line)]">
+                <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">日志版本列表</h3>
+                <button
+                  onClick={() => {
+                    setSelectedChangelog(null);
+                    setChangelogVersion("");
+                    setChangelogTitle("");
+                    setChangelogDate(new Date().toISOString().split("T")[0]);
+                    setChangelogContent("");
+                    setIsPreview(false);
+                  }}
+                  className="flex items-center gap-1.5 border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider font-bold transition-all"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <Plus className="size-3" />
+                  新增版本
+                </button>
+              </div>
+
+              {/* 搜索框 */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)]" />
+                <input
+                  value={changelogSearchQuery}
+                  onChange={(e) => setChangelogSearchQuery(e.target.value)}
+                  placeholder="搜索版本号或标题..."
+                  className="w-full border border-[var(--umx-line)] bg-[var(--umx-bg-2)] py-2 pl-9 pr-3 font-body text-xs text-[var(--umx-white)] outline-none transition-colors placeholder:text-[var(--umx-text-dim)] focus:border-[var(--umx-acid)]"
+                  style={{ borderRadius: "2px" }}
+                />
+              </div>
+
+              {/* 列表区域 */}
+              <div className="space-y-2 max-h-[500px] overflow-y-auto umx-scrollbar pr-1">
+                {changelogLoading ? (
+                  <div className="text-center py-8 font-mono text-[10px] text-[var(--umx-text-dim)] uppercase">
+                    LOADING CHANGELOGS...
+                  </div>
+                ) : filteredChangelogs.length === 0 ? (
+                  <div className="text-center py-8 font-mono text-[10px] text-[var(--umx-text-dim)] uppercase">
+                    NO RECORD FOUND
+                  </div>
+                ) : (
+                  filteredChangelogs.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedChangelog(item);
+                        setChangelogVersion(item.version);
+                        setChangelogTitle(item.title);
+                        setChangelogDate(item.release_date);
+                        setChangelogContent(item.content);
+                        setIsPreview(false);
+                      }}
+                      className={`p-3 border transition-all cursor-pointer flex flex-col gap-1.5 ${
+                        selectedChangelog?.id === item.id
+                          ? "border-[var(--umx-acid)] bg-[var(--umx-acid)]/5"
+                          : "border-[var(--umx-line)] bg-white/[0.01] hover:border-white"
+                      }`}
+                      style={{ borderRadius: "2px" }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[11px] font-bold text-white uppercase tracking-wider">
+                          {item.version}
+                        </span>
+                        <span className="font-mono text-[9px] text-[var(--umx-text-dim)]">
+                          {item.release_date}
+                        </span>
+                      </div>
+                      <h4 className="font-body text-xs text-[var(--umx-silver)] truncate">
+                        {item.title}
+                      </h4>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* 右侧：添加/编辑表单与实时预览 */}
+            <div className="lg:col-span-2 border border-[var(--umx-line)] p-6 bg-black/20" style={{ borderRadius: "2px" }}>
+              <div className="flex items-center justify-between mb-6 pb-3 border-b border-[var(--umx-line)]">
+                <h3 className="font-display text-xs font-bold uppercase tracking-[0.14em] text-white">
+                  {selectedChangelog ? "编辑日志详情" : "创建全新发布日志"}
+                </h3>
+                
+                {/* 预览切换开关 */}
+                <button
+                  onClick={() => setIsPreview(!isPreview)}
+                  disabled={!changelogContent}
+                  className={`flex items-center gap-1.5 px-3 py-1 font-mono text-[9px] uppercase tracking-wider border transition-all ${
+                    isPreview
+                      ? "border-[var(--umx-acid)] text-[var(--umx-acid)] bg-[var(--umx-acid)]/5"
+                      : "border-[var(--umx-line)] text-[var(--umx-text-dim)] hover:text-white disabled:opacity-30"
+                  }`}
+                  style={{ borderRadius: "2px" }}
+                >
+                  <Sparkles className="size-3" />
+                  {isPreview ? "返回编辑" : "实时渲染预览"}
+                </button>
+              </div>
+
+              {isPreview ? (
+                /* Markdown 预览区 */
+                <div className="space-y-4">
+                  <div className="border border-[var(--umx-line)] p-4 bg-black/40 min-h-[350px] max-h-[500px] overflow-y-auto umx-scrollbar">
+                    <div className="umx-changelog select-text">
+                      <h1>{changelogVersion || "未设定版本"} — {changelogTitle || "未设定标题"}</h1>
+                      <p className="font-mono text-[10px] text-[var(--umx-text-dim)] uppercase">
+                        发布日期: {changelogDate || "未设定日期"}
+                      </p>
+                      <hr />
+                      <ChangelogRenderer content={(changelogContent || "").replace(/\\n/g, "\n")} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsPreview(false)}
+                    className="border border-[var(--umx-line)] hover:border-white font-mono text-[10px] uppercase tracking-widest text-[var(--umx-silver)] transition-all py-2 w-full font-bold"
+                    style={{ borderRadius: "2px" }}
+                  >
+                    关闭预览以进行编辑
+                  </button>
+                </div>
+              ) : (
+                /* 表单编辑区 */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* 版本号 */}
+                    <div className="space-y-1.5">
+                      <label className="font-mono text-[9px] uppercase text-[var(--umx-text-dim)] block">版本号 (如 v0.4.1)</label>
+                      <input
+                        type="text"
+                        value={changelogVersion}
+                        onChange={(e) => setChangelogVersion(e.target.value)}
+                        placeholder="v0.0.0"
+                        className="w-full bg-black/40 border border-[var(--umx-line)] px-3 py-2 font-mono text-xs text-white focus:border-white focus:outline-none placeholder:text-[var(--umx-text-dim)]"
+                        style={{ borderRadius: "2px" }}
+                      />
+                    </div>
+                    
+                    {/* 发布日期 */}
+                    <div className="space-y-1.5">
+                      <label className="font-mono text-[9px] uppercase text-[var(--umx-text-dim)] block">发布日期</label>
+                      <input
+                        type="date"
+                        value={changelogDate}
+                        onChange={(e) => setChangelogDate(e.target.value)}
+                        className="w-full bg-black/40 border border-[var(--umx-line)] px-3 py-2 font-mono text-xs text-white focus:border-white focus:outline-none"
+                        style={{ borderRadius: "2px" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 标题 */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase text-[var(--umx-text-dim)] block">日志标题摘要</label>
+                    <input
+                      type="text"
+                      value={changelogTitle}
+                      onChange={(e) => setChangelogTitle(e.target.value)}
+                      placeholder="例如：微信 RPA 自动回复与终端面板加固"
+                      className="w-full bg-black/40 border border-[var(--umx-line)] px-3 py-2 font-body text-xs text-white focus:border-white focus:outline-none placeholder:text-[var(--umx-text-dim)]"
+                      style={{ borderRadius: "2px" }}
+                    />
+                  </div>
+
+                  {/* Markdown 正文内容 */}
+                  <div className="space-y-1.5">
+                    <label className="font-mono text-[9px] uppercase text-[var(--umx-text-dim)] block">日志内容 (支持 Markdown 语法)</label>
+                    <textarea
+                      value={changelogContent}
+                      onChange={(e) => setChangelogContent(e.target.value)}
+                      placeholder="### 新特性\n* **微信自动回复**：支持通过 Supabase 实时同步监听白名单配置。\n\n### 优化加固\n* 启用原生 PostgreSQL 函数对 profiles 角色实施 RLS 加固。"
+                      rows={12}
+                      className="w-full bg-black/40 border border-[var(--umx-line)] p-3 font-mono text-xs text-white focus:border-white focus:outline-none placeholder:text-[var(--umx-text-dim)] resize-none umx-scrollbar"
+                      style={{ borderRadius: "2px" }}
+                    />
+                  </div>
+
+                  {/* 操作控制区 */}
+                  <div className="pt-4 border-t border-[var(--umx-line)] flex items-center justify-between">
+                    <div>
+                      {selectedChangelog && (
+                        <button
+                          onClick={handleDeleteChangelog}
+                          className="font-mono text-[10px] uppercase tracking-wider text-[#ff6b6b] hover:text-white transition-colors border border-[#ff6b6b]/30 bg-[#ff6b6b]/5 hover:bg-[#ff6b6b]/10 px-4 py-2 font-bold"
+                          style={{ borderRadius: "2px" }}
+                        >
+                          删除此版本
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3">
+                      {selectedChangelog && (
+                        <button
+                          onClick={() => {
+                            setSelectedChangelog(null);
+                            setChangelogVersion("");
+                            setChangelogTitle("");
+                            setChangelogDate(new Date().toISOString().split("T")[0]);
+                            setChangelogContent("");
+                          }}
+                          className="border border-[var(--umx-line)] hover:border-white font-mono text-[10px] uppercase tracking-widest text-[var(--umx-silver)] transition-all px-5 py-2 font-bold"
+                          style={{ borderRadius: "2px" }}
+                        >
+                          取消编辑
+                        </button>
+                      )}
+                      <button
+                        onClick={handleSaveChangelog}
+                        disabled={savingChangelog || !changelogVersion || !changelogTitle || !changelogContent}
+                        className="flex items-center justify-center border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] px-6 py-2 font-mono text-[10px] tracking-wider uppercase font-bold transition-all disabled:opacity-30 disabled:pointer-events-none"
+                        style={{ borderRadius: "2px" }}
+                      >
+                        {savingChangelog ? "同步写入中..." : "保存并发布日志"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Slide-over Detail Drawer Panel */}

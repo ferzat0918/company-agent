@@ -47,3 +47,8 @@ if not _pg_uri:
         "Copy .env.example to .env and fill in your secrets."
     )
 POSTGRES_URI: str = _pg_uri
+
+# ─── GPT / DALL-E Transfer Agent ──────────────────────────────
+GPT_API_KEY = os.getenv("GPT_API_KEY", "")
+GPT_BASE_URL = os.getenv("GPT_BASE_URL", "")
+

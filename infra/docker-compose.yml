@@ -199,6 +199,8 @@ services:
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
       DAYTONA_API_KEY: ${DAYTONA_API_KEY}
       DAYTONA_API_URL: ${DAYTONA_API_URL}
+      GPT_API_KEY: ${GPT_API_KEY:-}
+      GPT_BASE_URL: ${GPT_BASE_URL:-}
     volumes:
       # :ro hardens the container — even if the agent's permission rules
       # are ever weakened, the kernel will still reject writes into these

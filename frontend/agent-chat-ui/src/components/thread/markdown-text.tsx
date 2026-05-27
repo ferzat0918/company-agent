@@ -149,6 +149,15 @@ function MarkdownImage({
           }}
         />
       </span>
+      {/* Download button — visible on hover */}
+      <a
+        href={resolvedSrc}
+        download={alt || "download-image.png"}
+        className="absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg)] text-[var(--umx-text-dim)] opacity-0 transition-all duration-200 group-hover/img:opacity-100 hover:text-[var(--umx-acid)] hover:scale-105"
+        title="Download Image"
+      >
+        <Download className="h-3 w-3" />
+      </a>
       {/* Light/Dark toggle — visible on hover */}
       <button
         type="button"

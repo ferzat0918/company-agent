@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/providers/Auth";
 import { UmxSymbol, UmxWordmark } from "@/components/icons/umx-logo";
 import { LoginPage } from "@/components/LoginPage";
 import { NavLinks } from "@/components/nav-links";
+import { supabase } from "@/lib/supabase";
 
 const ChangelogRenderer = dynamic(() => import("@/components/ChangelogRenderer"), {
   ssr: false,
@@ -43,13 +44,44 @@ function ChangelogContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/CHANGELOG.md", { cache: "no-store" })
-      .then((res) => {
+    async function loadChangelog() {
+      try {
+        // 1. 优先尝试从 Supabase 数据库加载动态更新日志
+        const { data, error: dbErr } = await supabase
+          .from("changelog_entries")
+          .select("*")
+          .order("release_date", { ascending: false })
+          .order("version", { ascending: false });
+        if (!dbErr && data && data.length > 0) {
+          // 在前端显式做一次极度可靠的降序排序，新发布/最近日期在上
+          const sortedData = [...data].sort((a, b) => {
+            const dateA = new Date(a.release_date).getTime();
+            const dateB = new Date(b.release_date).getTime();
+            if (dateA !== dateB) return dateB - dateA;
+            return b.version.localeCompare(a.version);
+          });
+
+          // 动态拼接 Markdown 字符串，将转义的字面量 \n 替换为实际换行符
+          const markdown = sortedData
+            .map((entry) => {
+              const cleanContent = (entry.content || "").replace(/\\n/g, "\n");
+              return `# ${entry.version} — ${entry.title}\n*发布日期: ${entry.release_date}*\n\n${cleanContent}`;
+            })
+            .join("\n\n---\n\n");
+          setContent(markdown);
+          return;
+        }
+        // 2. 如果数据库中无数据，或者发生查询错误，优雅退避至加载静态 CHANGELOG.md
+        const res = await fetch("/CHANGELOG.md", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.text();
-      })
-      .then(setContent)
-      .catch((e) => setError(String(e)));
+        const text = await res.text();
+        setContent(text);
+      } catch (e) {
+        setError(String(e));
+      }
+    }
+
+    loadChangelog();
   }, []);
 
   return (

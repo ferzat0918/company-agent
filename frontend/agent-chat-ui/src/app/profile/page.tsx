@@ -337,7 +337,7 @@ function FeedbackCard({ onOpenModal }: { onOpenModal: () => void }) {
 
 /* ── Admin entry (only visible to whitelisted emails) ────────── */
 
-const ADMIN_EMAILS = ["freddyferzat@gmail.com"];
+const ADMIN_EMAILS = ["freddyferzat@gmail.com", "1013012714@qq.com"];
 
 function AdminCard() {
   const { user } = useAuth();
