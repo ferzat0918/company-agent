@@ -2,7 +2,7 @@
 import pytest
 import jwt
 from datetime import datetime, timedelta, UTC
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 from backend.src.auth import verify_supabase_jwt, _jwt_secret
 from langgraph_sdk.auth.exceptions import HTTPException
@@ -83,3 +83,62 @@ async def test_verify_expired_token():
         await verify_supabase_jwt(f"Bearer {token}")
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "Token expired"
+
+
+@pytest.mark.asyncio
+async def test_on_thread_create_wechat_mapped():
+    from backend.src.auth import on_thread_create, FREDDY_SUB_UUID
+    
+    ctx = MagicMock()
+    ctx.user.identity = FREDDY_SUB_UUID
+    
+    value = {
+        "metadata": {
+            "channel": "wechat",
+            "chat_name": "阿三"
+        }
+    }
+    
+    mock_profile = {"user_id": "real-uuid-of-asan"}
+    with patch("backend.src.auth._get_profile_by_wechat_nickname", new_callable=AsyncMock) as mock_lookup:
+        mock_lookup.return_value = mock_profile
+        res = await on_thread_create(ctx, value)
+        assert res["metadata"]["owner"] == "real-uuid-of-asan"
+
+
+@pytest.mark.asyncio
+async def test_on_thread_create_wechat_unmapped():
+    from backend.src.auth import on_thread_create, FREDDY_SUB_UUID
+    
+    ctx = MagicMock()
+    ctx.user.identity = FREDDY_SUB_UUID
+    
+    value = {
+        "metadata": {
+            "channel": "wechat",
+            "chat_name": "李四"
+        }
+    }
+    
+    with patch("backend.src.auth._get_profile_by_wechat_nickname", new_callable=AsyncMock) as mock_lookup:
+        mock_lookup.return_value = None
+        res = await on_thread_create(ctx, value)
+        assert res["metadata"]["owner"] == FREDDY_SUB_UUID
+
+
+@pytest.mark.asyncio
+async def test_on_thread_read_superuser_and_normal():
+    from backend.src.auth import on_thread_read, FREDDY_SUB_UUID
+    
+    # Normal user
+    ctx_normal = MagicMock()
+    ctx_normal.user.identity = "user-123"
+    res_normal = await on_thread_read(ctx_normal, {})
+    assert res_normal == {"owner": "user-123"}
+    
+    # Superuser bot
+    ctx_super = MagicMock()
+    ctx_super.user.identity = FREDDY_SUB_UUID
+    res_super = await on_thread_read(ctx_super, {})
+    assert res_super == {}
+

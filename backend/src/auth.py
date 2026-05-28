@@ -105,36 +105,77 @@ async def verify_supabase_jwt(authorization: str | None) -> dict:
 # Resource-level authorization: thread isolation per user
 # ──────────────────────────────────────────────────────────
 
+FREDDY_SUB_UUID = "d81a0391-2663-4f0b-ba89-39f17773a9a1"
+
+
+async def _get_profile_by_wechat_nickname(wechat_nickname: str) -> dict | None:
+    """Query Supabase profiles table by wechat_nickname."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{_supabase_url}/rest/v1/profiles",
+                params={"wechat_nickname": f"eq.{wechat_nickname}", "select": "*"},
+                headers={
+                    "apikey": _supabase_service_key,
+                    "Authorization": f"Bearer {_supabase_service_key}",
+                },
+            )
+            if resp.status_code == 200 and resp.json():
+                return resp.json()[0]
+    except Exception:
+        pass
+    return None
+
+
 @auth.on.threads.create
 async def on_thread_create(ctx, value):
     """Stamp every new thread with the owner's identity."""
     metadata = value.setdefault("metadata", {})
-    metadata["owner"] = ctx.user.identity
+    owner = ctx.user.identity
+
+    # If created in the WeChat channel, try to bind to the real employee account
+    if metadata.get("channel") == "wechat":
+        chat_name = metadata.get("chat_name") or metadata.get("sender")
+        if chat_name:
+            profile = await _get_profile_by_wechat_nickname(chat_name)
+            if profile:
+                owner = profile.get("user_id") or owner
+
+    metadata["owner"] = owner
     return value
 
 
 @auth.on.threads.read
 async def on_thread_read(ctx, value):
-    """Only return threads owned by the current user."""
+    """Only return threads owned by the current user (except WeChat RPA superuser)."""
+    if ctx.user.identity == FREDDY_SUB_UUID:
+        return {}
     return {"owner": ctx.user.identity}
 
 
 @auth.on.threads.update
 async def on_thread_update(ctx, value):
-    """Only allow updating threads owned by the current user."""
+    """Only allow updating threads owned by the current user (except WeChat RPA superuser)."""
+    if ctx.user.identity == FREDDY_SUB_UUID:
+        return {}
     return {"owner": ctx.user.identity}
 
 
 @auth.on.threads.delete
 async def on_thread_delete(ctx, value):
-    """Only allow deleting threads owned by the current user."""
+    """Only allow deleting threads owned by the current user (except WeChat RPA superuser)."""
+    if ctx.user.identity == FREDDY_SUB_UUID:
+        return {}
     return {"owner": ctx.user.identity}
 
 
 @auth.on.threads.search
 async def on_thread_search(ctx, value):
-    """Only list threads owned by the current user."""
+    """Only list threads owned by the current user (except WeChat RPA superuser)."""
+    if ctx.user.identity == FREDDY_SUB_UUID:
+        return {}
     return {"owner": ctx.user.identity}
 
 
 __all__ = ["auth"]
+

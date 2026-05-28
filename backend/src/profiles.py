@@ -50,3 +50,32 @@ async def get_profile(
             role=data.get("role", ""),
             region=data.get("region"),
         )
+
+
+async def get_profile_by_wechat_nickname(
+    wechat_nickname: str,
+    supabase_url: str | None = None,
+    service_key: str | None = None,
+) -> Optional[UserProfile]:
+    """Query user profile by wechat_nickname from Supabase profiles table."""
+    supabase_url = supabase_url or SUPABASE_URL
+    service_key = service_key or SUPABASE_SERVICE_KEY
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            f"{supabase_url}/rest/v1/profiles",
+            params={"wechat_nickname": f"eq.{wechat_nickname}"},
+            headers={
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+            },
+        )
+        if resp.status_code != 200 or not resp.json():
+            return None
+        data = resp.json()[0]
+        return UserProfile(
+            user_id=data["user_id"],
+            dept=data["dept"],
+            role=data.get("role", ""),
+            region=data.get("region"),
+        )
+

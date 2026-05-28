@@ -44,3 +44,36 @@ async def test_get_profile_empty_response():
     with patch("httpx.AsyncClient.get", return_value=mock_response):
         profile = await get_profile("empty-uuid")
         assert profile is None
+
+
+@pytest.mark.asyncio
+async def test_get_profile_by_wechat_nickname_found():
+    from backend.src.profiles import get_profile_by_wechat_nickname
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = [
+        {
+            "user_id": "uuid-wechat-mapped",
+            "dept": "HR",
+            "role": "专员",
+            "region": "cn",
+        }
+    ]
+
+    with patch("httpx.AsyncClient.get", return_value=mock_response):
+        profile = await get_profile_by_wechat_nickname("阿三")
+        assert profile is not None
+        assert profile.user_id == "uuid-wechat-mapped"
+        assert profile.dept == "HR"
+
+
+@pytest.mark.asyncio
+async def test_get_profile_by_wechat_nickname_not_found():
+    from backend.src.profiles import get_profile_by_wechat_nickname
+    mock_response = MagicMock()
+    mock_response.status_code = 404
+
+    with patch("httpx.AsyncClient.get", return_value=mock_response):
+        profile = await get_profile_by_wechat_nickname("不存在的微信名")
+        assert profile is None
+

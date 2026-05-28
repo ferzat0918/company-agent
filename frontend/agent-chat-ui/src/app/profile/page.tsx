@@ -38,6 +38,8 @@ type ProfileRow = {
   dept: string | null;
   role: string | null;
   region: string | null;
+  name: string | null;
+  wechat_nickname: string | null;
 };
 
 function SectionLabel({ index, title }: { index: string; title: string }) {
@@ -131,15 +133,135 @@ function PasswordField({
   );
 }
 
-function AccountInfoCard({ profile }: { profile: ProfileRow | null }) {
+function AccountInfoCard({
+  profile,
+  onUpdate,
+}: {
+  profile: ProfileRow | null;
+  onUpdate: () => void;
+}) {
   const { user } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [wechat, setWechat] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setName(profile.name || "");
+      setWechat(profile.wechat_nickname || "");
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
+    if (!user?.id) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ name, wechat_nickname: wechat })
+      .eq("user_id", user.id);
+    setSaving(false);
+    if (!error) {
+      setEditing(false);
+      onUpdate();
+    } else {
+      alert("保存失败: " + error.message);
+    }
+  };
+
   return (
     <section>
-      <SectionLabel index="01" title="ACCOUNT" />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--umx-acid)]">
+            §01
+          </span>
+          <h2 className="m-0 font-display text-xl font-bold uppercase tracking-[0.14em] text-[var(--umx-white)]">
+            ACCOUNT
+          </h2>
+        </div>
+        {editing ? (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditing(false);
+                setName(profile?.name || "");
+                setWechat(profile?.wechat_nickname || "");
+              }}
+              disabled={saving}
+              className="h-7 px-3 py-1 text-[10px] font-mono tracking-wider rounded-[2px] border-[var(--umx-line)]"
+            >
+              CANCEL
+            </Button>
+            <Button
+              variant="acid"
+              size="sm"
+              onClick={handleSave}
+              disabled={saving}
+              className="h-7 px-3 py-1 text-[10px] font-mono tracking-wider rounded-[2px]"
+            >
+              {saving ? "SAVING..." : "SAVE"}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditing(true)}
+            className="h-7 px-3 py-1 text-[10px] font-mono tracking-wider rounded-[2px] border-[var(--umx-line)] hover:border-[var(--umx-acid)] hover:text-[var(--umx-acid)] transition-colors"
+          >
+            EDIT PROFILE
+          </Button>
+        )}
+      </div>
+
       <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)]">
         <InfoRow label="EMAIL" value={user?.email} />
         <InfoRow label="DEPT / 部门" value={profile?.dept || "unknown"} />
         <InfoRow label="ROLE / 角色" value={profile?.role || "—"} />
+        
+        {/* Name Row */}
+        <div className="grid grid-cols-[160px_1fr] items-center gap-4 border-b border-[var(--umx-line)] px-6 py-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">
+            NAME / 姓名
+          </span>
+          {editing ? (
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="请输入真实姓名"
+              className="px-3.5 py-1.5 bg-[var(--umx-bg-2)] border border-[var(--umx-line)] focus:border-[var(--umx-acid)] text-xs text-[var(--umx-white)] outline-none rounded-[2px] w-full max-w-xs transition-colors"
+            />
+          ) : (
+            <span className="font-mono text-[12px] text-[var(--umx-white)]">
+              {profile?.name || "—"}
+            </span>
+          )}
+        </div>
+
+        {/* WeChat Row */}
+        <div className="grid grid-cols-[160px_1fr] items-center gap-4 border-b border-[var(--umx-line)] px-6 py-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">
+            WECHAT / 微信昵称
+          </span>
+          {editing ? (
+            <input
+              type="text"
+              value={wechat}
+              onChange={(e) => setWechat(e.target.value)}
+              placeholder="请输入微信个人昵称（非微信号）"
+              className="px-3.5 py-1.5 bg-[var(--umx-bg-2)] border border-[var(--umx-line)] focus:border-[var(--umx-acid)] text-xs text-[var(--umx-white)] outline-none rounded-[2px] w-full max-w-xs transition-colors"
+            />
+          ) : (
+            <span className="font-mono text-[12px] text-[var(--umx-white)]">
+              {profile?.wechat_nickname || "—"}
+            </span>
+          )}
+        </div>
+
         <InfoRow label="USER ID" value={user?.id} />
       </div>
     </section>
@@ -389,6 +511,7 @@ function ProfileContent() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [triggerFetch, setTriggerFetch] = useState(0);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -396,7 +519,7 @@ function ProfileContent() {
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, dept, role, region")
+        .select("user_id, dept, role, region, name, wechat_nickname")
         .eq("user_id", user.id)
         .maybeSingle();
       if (!cancelled && data) setProfile(data as ProfileRow);
@@ -404,7 +527,7 @@ function ProfileContent() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, triggerFetch]);
 
   return (
     <main className="umx-scrollbar min-h-screen overflow-x-hidden bg-[var(--umx-bg-0)] text-[var(--umx-white)]">
@@ -421,7 +544,10 @@ function ProfileContent() {
       </header>
 
       <div className="mx-auto max-w-3xl space-y-12 px-8 py-12">
-        <AccountInfoCard profile={profile} />
+        <AccountInfoCard
+          profile={profile}
+          onUpdate={() => setTriggerFetch((prev) => prev + 1)}
+        />
         <PasswordCard />
         <FeedbackCard onOpenModal={() => setFeedbackOpen(true)} />
         <AdminCard />

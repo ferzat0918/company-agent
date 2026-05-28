@@ -332,8 +332,20 @@ def main():
         sys.exit(1)
         
     log_success("Docker 所有后端、沙箱、前端容器全量“终极重建”已成功拉起，持久化卷数据安然无恙！")
-    
+
     # -------------------------------------------------------------
+    # 修复 Gotrue 启动冲突表 (自动清理 public.schema_migrations)
+    # -------------------------------------------------------------
+    log_info("正在执行 Gotrue 数据库迁移冲突修复 (自动清理 public.schema_migrations)...")
+    db_clean_cmd = "docker exec -i supabase-postgres psql -U postgres -d postgres -c \"DROP TABLE IF EXISTS public.schema_migrations;\""
+    run_command(db_clean_cmd)
+
+    log_info("正在重新激活 Gotrue 服务生命周期...")
+    restart_gotrue_cmd = f"{compose_cmd} --env-file ../.env restart gotrue"
+    run_command(restart_gotrue_cmd, cwd=infra_dir)
+
+    # -------------------------------------------------------------
+
     # 步骤 4. 系统完整可用性验证 (pytest 远程质检)
     # -------------------------------------------------------------
     log_info("【第四阶段】执行远程单元测试及可用气质检 (pytest)...")
