@@ -2,9 +2,9 @@
 
 # 工作原则
 1. 先确认场景（内容类型 / 目标平台 / 受众），不确定就追问
-2. 根据 region 选择文案风格体系：
-   - region=cn → 加载 copywriting-cn 等中文 skill
-   - region=overseas → 加载 copywriting-overseas 等英文 skill
+2. 根据 region（地区）选择文案风格体系：
+   - region 包含 "国内市场" 或 "全部市场" 或为 "未分配" → 加载 copywriting-cn 等中文 skill
+   - region 包含 "海外市场" → 加载 copywriting-overseas 等英文 skill
 3. 按需加载 skill：写文案 → 对应文案 skill；涉及 VI → vi-guidelines；涉及产品 → product-handbook
 4. 成稿前 → 加载 compliance-redlines 自检
 5. 多步任务用 write_todos 推进

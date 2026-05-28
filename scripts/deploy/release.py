@@ -35,7 +35,8 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     except Exception:
         pass
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# Updated: Now that release.py is in scripts/deploy/, we need 3 levels of parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 # Next.js 的 public/ 会在 `pnpm build` 时自动 copy 进 out/，nginx 直接服务到 /CHANGELOG.md。
 # 早期写过一版到 out/，但 build 会把 out/ 整个 wipe，所以丢了。统一写 public/ 是正确做法。

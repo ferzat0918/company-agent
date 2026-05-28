@@ -8,8 +8,8 @@ async def main():
     
     sql_script = """
     -- 1. Insert profiles for pre-existing auth.users
-    INSERT INTO public.profiles (user_id, dept, role, region, created_at)
-    SELECT id, '未分配', '普通用户', '未分配', now()
+    INSERT INTO public.profiles (user_id, dept, role, region, name, wechat_nickname, created_at)
+    SELECT id, '未分配', '普通用户', '未分配', '', '', now()
     FROM auth.users
     ON CONFLICT (user_id) DO NOTHING;
 
@@ -17,8 +17,8 @@ async def main():
     CREATE OR REPLACE FUNCTION public.handle_new_user()
     RETURNS TRIGGER AS $$
     BEGIN
-      INSERT INTO public.profiles (user_id, dept, role, region, created_at)
-      VALUES (new.id, '未分配', '普通用户', '未分配', now())
+      INSERT INTO public.profiles (user_id, dept, role, region, name, wechat_nickname, created_at)
+      VALUES (new.id, '未分配', '普通用户', '未分配', '', '', now())
       ON CONFLICT (user_id) DO NOTHING;
       RETURN new;
     END;
@@ -38,7 +38,9 @@ async def main():
       u.created_at AS registered_at,
       COALESCE(p.dept, '未分配') AS dept,
       COALESCE(p.role, '普通用户') AS role,
-      COALESCE(p.region, '未分配') AS region
+      COALESCE(p.region, '未分配') AS region,
+      COALESCE(p.name, '') AS name,
+      COALESCE(p.wechat_nickname, '') AS wechat_nickname
     FROM auth.users u
     LEFT JOIN public.profiles p ON u.id = p.user_id;
 

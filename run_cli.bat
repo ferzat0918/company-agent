@@ -65,7 +65,7 @@ if errorlevel 1 goto DEPS_FAIL_ERROR
 
 :RUN_PORTABLE
 echo [UMX] Starting WeChat RPA Terminal Service...
-"%~dp0.python_env\python.exe" "%~dp0wechat_rpa_v4.py"
+"%~dp0.python_env\python.exe" "%~dp0scripts\rpa\wechat_rpa_v4.py"
 goto END
 
 :SYSTEM_FALLBACK
@@ -84,7 +84,7 @@ if errorlevel 1 goto DEPS_FAIL_ERROR
 
 :RUN_GLOBAL
 echo [UMX] Starting WeChat RPA Terminal Service...
-python "%~dp0wechat_rpa_v4.py"
+python "%~dp0scripts\rpa\wechat_rpa_v4.py"
 goto END
 
 :NO_PY_ERROR

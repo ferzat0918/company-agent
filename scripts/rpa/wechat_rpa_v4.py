@@ -367,8 +367,10 @@ def main():
                 # If we intercepted explicit file sending tool calls
                 if target_files:
                     logger.info(f"📂 [RPA 工具雷达] 拦截到大模型显式发送文件请求，共 {len(target_files)} 个...")
+                    
+                    # Updated: Resolve workspace relative to project root
                     script_dir = os.path.dirname(os.path.abspath(__file__))
-                    workspace_dir = os.path.join(script_dir, "workspace")
+                    workspace_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "workspace"))
                     
                     # Compute thread_id dynamically to locate the thread-isolated folder
                     namespace = uuid.UUID(FREDDY_SUB_UUID)
@@ -499,4 +501,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

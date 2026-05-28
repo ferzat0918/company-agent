@@ -147,7 +147,8 @@ def get_docker_compose_cmd():
 def main():
     print_umx_header()
     
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Updated: Now that deploy.py is inside scripts/deploy/, we need 3 levels of parent directories
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     node_env_dir = os.path.join(repo_root, ".node_env")
     
     # -------------------------------------------------------------

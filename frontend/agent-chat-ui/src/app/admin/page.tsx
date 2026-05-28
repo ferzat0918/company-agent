@@ -60,7 +60,7 @@ type UserViewRow = {
 
 const DEPTS = ["研发部", "产品设计部", "市场运营部", "客户成功部", "财务部", "未分配"];
 const ROLES = ["系统管理员", "部门主管", "普通用户"];
-const REGIONS = ["华东地区", "华南地区", "华北地区", "海外地区", "未分配"];
+const REGIONS = ["国内市场", "海外市场", "全部市场", "未分配"];
 
 type FilterType = "all" | "bug" | "feature";
 type FilterStatus = "all" | "submitted" | "accepted" | "in_progress" | "rejected" | "on_hold";

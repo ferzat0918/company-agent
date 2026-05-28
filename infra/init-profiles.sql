@@ -4,16 +4,18 @@
 
 -- 1. profiles 主表（每个 auth.users 一行）
 CREATE TABLE IF NOT EXISTS public.profiles (
-  user_id    uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  dept       text DEFAULT '未分配',
-  role       text DEFAULT '普通用户',
-  region     text DEFAULT '未分配',
-  created_at timestamptz DEFAULT now()
+  user_id         uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  dept            text DEFAULT '未分配',
+  role            text DEFAULT '普通用户',
+  region          text DEFAULT '未分配',
+  name            text DEFAULT '',
+  wechat_nickname text DEFAULT '',
+  created_at      timestamptz DEFAULT now()
 );
 
 -- 2. 给已经存在的 auth.users 补出缺失的 profile（幂等：ON CONFLICT DO NOTHING）
-INSERT INTO public.profiles (user_id, dept, role, region, created_at)
-SELECT id, '未分配', '普通用户', '未分配', now()
+INSERT INTO public.profiles (user_id, dept, role, region, name, wechat_nickname, created_at)
+SELECT id, '未分配', '普通用户', '未分配', '', '', now()
 FROM auth.users
 ON CONFLICT (user_id) DO NOTHING;
 
@@ -21,8 +23,8 @@ ON CONFLICT (user_id) DO NOTHING;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (user_id, dept, role, region, created_at)
-  VALUES (new.id, '未分配', '普通用户', '未分配', now())
+  INSERT INTO public.profiles (user_id, dept, role, region, name, wechat_nickname, created_at)
+  VALUES (new.id, '未分配', '普通用户', '未分配', '', '', now())
   ON CONFLICT (user_id) DO NOTHING;
   RETURN new;
 END;
@@ -36,12 +38,14 @@ CREATE TRIGGER on_auth_user_created
 -- 4. admin_user_view —— 把 auth.users 和 profiles 拼成一张前端能直接消费的视图
 CREATE OR REPLACE VIEW public.admin_user_view AS
 SELECT
-  u.id           AS user_id,
+  u.id                AS user_id,
   u.email,
-  u.created_at   AS registered_at,
-  COALESCE(p.dept,   '未分配')   AS dept,
-  COALESCE(p.role,   '普通用户') AS role,
-  COALESCE(p.region, '未分配')   AS region
+  u.created_at        AS registered_at,
+  COALESCE(p.dept,            '未分配')   AS dept,
+  COALESCE(p.role,            '普通用户') AS role,
+  COALESCE(p.region,          '未分配')   AS region,
+  COALESCE(p.name,            '')         AS name,
+  COALESCE(p.wechat_nickname, '')         AS wechat_nickname
 FROM auth.users u
 LEFT JOIN public.profiles p ON u.id = p.user_id;
 

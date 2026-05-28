@@ -25,17 +25,17 @@ if exist "%~dp0.python_env\python.exe" goto RUN_PORTABLE_PYTHON
 goto BOOTSTRAP_PYTHON
 
 :RUN_PYTHON
-python "%~dp0scripts\deploy.py"
+python "%~dp0scripts\deploy\deploy.py"
 if errorlevel 1 goto DEPLOYFAIL
 exit /b 0
 
 :RUN_PYTHON3
-python3 "%~dp0scripts\deploy.py"
+python3 "%~dp0scripts\deploy\deploy.py"
 if errorlevel 1 goto DEPLOYFAIL
 exit /b 0
 
 :RUN_PORTABLE_PYTHON
-"%~dp0.python_env\python.exe" "%~dp0scripts\deploy.py"
+"%~dp0.python_env\python.exe" "%~dp0scripts\deploy\deploy.py"
 if errorlevel 1 goto DEPLOYFAIL
 exit /b 0
 
