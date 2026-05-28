@@ -132,6 +132,7 @@ def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wec
     }
 
     # First ensure thread exists
+    history_message_ids = set()
     with httpx.Client() as client:
         try:
             client.post(
@@ -140,8 +141,22 @@ def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wec
                 headers=headers,
                 timeout=5.0
             )
-        except Exception:
-            pass  # Thread already provisioned
+            
+            # Fetch existing message IDs to prevent repeating historical tool calls/logs
+            state_resp = client.get(
+                f"{LANGGRAPH_API_URL}/threads/{thread_id}/state",
+                headers=headers,
+                timeout=5.0
+            )
+            if state_resp.status_code == 200 and state_resp.json():
+                state_data = state_resp.json()
+                values = state_data.get("values", {})
+                existing_msgs = values.get("messages", [])
+                for m in existing_msgs:
+                    if isinstance(m, dict) and m.get("id"):
+                        history_message_ids.add(m["id"])
+        except Exception as e:
+            logger.warning(f"获取历史消息状态失败: {e}")
 
     # Retry loop for LLM execution
     for attempt in range(1, RETRY_MAX + 1):
@@ -177,6 +192,11 @@ def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wec
                                         for m in msgs:
                                             if isinstance(m, dict):
                                                 msg_id = m.get("id") or f"{m.get('type')}_{m.get('name')}_{len(str(m.get('content', '')))}"
+                                                
+                                                # Ignore messages that already existed in thread history before this run
+                                                if msg_id in history_message_ids:
+                                                    continue
+                                                    
                                                 if msg_id not in printed_message_ids:
                                                     printed_message_ids.add(msg_id)
                                                     
