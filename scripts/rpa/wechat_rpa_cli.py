@@ -56,11 +56,41 @@ def invoke_langgraph(sender_name: str, prompt: str) -> str:
     }
     
     # 1. Create thread if not exists
+    channel = "wechat"
+    chat_name = sender_name
+    sender = sender_name
+
     with httpx.Client() as client:
+        try:
+            # Check if thread already exists and its metadata is unmapped/empty
+            thread_resp = client.get(
+                f"{LANGGRAPH_API_URL}/threads/{thread_id}",
+                headers=headers,
+                timeout=5.0
+            )
+            if thread_resp.status_code == 200:
+                thread_data = thread_resp.json()
+                metadata = thread_data.get("metadata") or {}
+                if not metadata.get("channel") or metadata.get("owner") == FREDDY_SUB_UUID:
+                    client.delete(
+                        f"{LANGGRAPH_API_URL}/threads/{thread_id}",
+                        headers=headers,
+                        timeout=5.0
+                    )
+        except Exception:
+            pass
+
         try:
             client.post(
                 f"{LANGGRAPH_API_URL}/threads",
-                json={"thread_id": thread_id, "metadata": {}},
+                json={
+                    "thread_id": thread_id,
+                    "metadata": {
+                        "channel": channel,
+                        "chat_name": chat_name,
+                        "sender": sender
+                    }
+                },
                 headers=headers,
                 timeout=5.0
             )

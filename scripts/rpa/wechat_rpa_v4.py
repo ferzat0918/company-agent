@@ -135,9 +135,38 @@ def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wec
     history_message_ids = set()
     with httpx.Client() as client:
         try:
+            # Check if thread already exists and its metadata is unmapped/empty
+            thread_resp = client.get(
+                f"{LANGGRAPH_API_URL}/threads/{thread_id}",
+                headers=headers,
+                timeout=5.0
+            )
+            if thread_resp.status_code == 200:
+                thread_data = thread_resp.json()
+                metadata = thread_data.get("metadata") or {}
+                # If channel is not set, or owner is set to the superuser (meaning it's unmapped)
+                if not metadata.get("channel") or metadata.get("owner") == FREDDY_SUB_UUID:
+                    logger.info(f"检测到未绑定的历史 Thread ({thread_id})，正在进行删除以重建绑定...")
+                    client.delete(
+                        f"{LANGGRAPH_API_URL}/threads/{thread_id}",
+                        headers=headers,
+                        timeout=5.0
+                    )
+        except Exception as e:
+            logger.debug(f"检查历史 Thread 状态时出错 (可能不存在): {e}")
+
+        try:
+            # Create/Recreate the thread with full metadata to trigger backend's on_thread_create hooks
             client.post(
                 f"{LANGGRAPH_API_URL}/threads",
-                json={"thread_id": thread_id, "metadata": {}},
+                json={
+                    "thread_id": thread_id,
+                    "metadata": {
+                        "channel": channel,
+                        "chat_name": chat_name,
+                        "sender": sender
+                    }
+                },
                 headers=headers,
                 timeout=5.0
             )
@@ -156,7 +185,7 @@ def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wec
                     if isinstance(m, dict) and m.get("id"):
                         history_message_ids.add(m["id"])
         except Exception as e:
-            logger.warning(f"获取历史消息状态失败: {e}")
+            logger.warning(f"初始化 Thread 或获取历史消息状态失败: {e}")
 
     # Retry loop for LLM execution
     for attempt in range(1, RETRY_MAX + 1):

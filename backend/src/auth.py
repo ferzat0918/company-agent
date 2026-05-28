@@ -135,9 +135,12 @@ async def on_thread_create(ctx, value):
 
     # If created in the WeChat channel, try to bind to the real employee account
     if metadata.get("channel") == "wechat":
-        chat_name = metadata.get("chat_name") or metadata.get("sender")
-        if chat_name:
-            profile = await _get_profile_by_wechat_nickname(chat_name)
+        # 优先使用具体的发言人 sender 进行反查绑定（防止群聊场景下直接查群名失败）
+        sender = metadata.get("sender")
+        chat_name = metadata.get("chat_name")
+        target_name = sender if (sender and sender != "未知发送者") else chat_name
+        if target_name:
+            profile = await _get_profile_by_wechat_nickname(target_name)
             if profile:
                 owner = profile.get("user_id") or owner
 
