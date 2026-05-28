@@ -22,6 +22,7 @@ COPY langgraph.json ./langgraph.json
 COPY skills/ ./skills/
 COPY prompts/ ./prompts/
 COPY infra/*.sql ./infra/
+COPY infra/migrations/ ./infra/migrations/
 
 # Pre-install Python deps at build time (langgraph dev will verify/reuse)
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -e "./backend[dev]"
