@@ -49,9 +49,9 @@ async def main() -> None:
         print("Starting automatic database migration check...")
         conn = await psycopg.AsyncConnection.connect(uri)
         async with conn:
-            # 1. Create schema_migrations table if not exists
+            # 1. Create app_migrations table if not exists
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS public.schema_migrations (
+                CREATE TABLE IF NOT EXISTS public.app_migrations (
                     migration_name VARCHAR(255) PRIMARY KEY,
                     applied_at TIMESTAMPTZ DEFAULT NOW()
                 );
@@ -66,7 +66,7 @@ async def main() -> None:
                 # Check if already applied
                 async with conn.cursor() as cur:
                     await cur.execute(
-                        "SELECT 1 FROM public.schema_migrations WHERE migration_name = %s",
+                        "SELECT 1 FROM public.app_migrations WHERE migration_name = %s",
                         (migration_name,)
                     )
                     already_applied = cur.rowcount > 0 or await cur.fetchone()
@@ -83,7 +83,7 @@ async def main() -> None:
                     
                     # Record execution
                     await conn.execute(
-                        "INSERT INTO public.schema_migrations (migration_name) VALUES (%s)",
+                        "INSERT INTO public.app_migrations (migration_name) VALUES (%s)",
                         (migration_name,)
                     )
                     await conn.commit()
