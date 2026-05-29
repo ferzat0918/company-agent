@@ -127,50 +127,65 @@ def gen_supabase_jwt(user_id: str):
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 def check_wechat_binding(wechat_nickname: str) -> str | None:
-    """根据微信发言人昵称向 Supabase REST 接口反查 profiles 绑定关系，获取 user_id。
-    支持极其强大的隐藏空格净化、大小写忽略、以及模糊/子串容错匹配，防止任何微信特殊字符导致阻断。
+    """根据微信发言人昵称向 PostgREST 直连反查 profiles 绑定关系，获取 user_id。
+    绕过 Kong 网关（Kong 偶发 502），直接走 PostgREST (端口 3001)。
+    支持隐藏空格净化、大小写忽略、模糊/子串容错匹配。
     """
     if not wechat_nickname or wechat_nickname == "未知发送者":
         return None
         
-    # 对抓取到的微信昵称做深度净化，去掉所有普通空格和微信专用的 \u2005 隐藏空格，并转为小写
+    # 对抓取到的微信昵称做深度净化
     clean_sender = re.sub(r"\s+", "", wechat_nickname).replace("\u2005", "").strip().lower()
     
-    # 微信文件传输助手是调试利器，或者自己发送的消息 (self) 默认直通绑定 Freddy
+    # 文件传输助手 / self 直通绑定 Freddy
     if clean_sender == "文件传输助手" or clean_sender == "self" or clean_sender == "filehelper":
         return FREDDY_SUB_UUID
-        
-    try:
-        headers = {
-            "apikey": SUPABASE_SERVICE_KEY,
-            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-        }
-        url = f"{SUPABASE_URL}/rest/v1/profiles"
-        # 性能极佳地过滤只拉取 wechat_nickname 不为空的记录，在本地做智能多态模糊匹配
-        params = {"wechat_nickname": "not.is.null", "select": "*"}
-        
-        logger.info(f"🔮 [DEBUG REST] 发起安全反查 -> URL: {url}, Key长度: {len(SUPABASE_SERVICE_KEY or '')}, 原始昵称: '{wechat_nickname}', 净化昵称: '{clean_sender}'")
-        
-        with httpx.Client() as client:
-            resp = client.get(url, params=params, headers=headers, timeout=10.0)
-            logger.info(f"🔮 [DEBUG REST] 收到响应 -> 状态码: {resp.status_code}, 返回数据量: {len(resp.json() if resp.status_code == 200 else [])}")
+    
+    # 直连 PostgREST（绕过 Kong 避免间歇性 502）
+    postgrest_url = os.environ.get("POSTGREST_URL") or "http://localhost:3001"
+    
+    for attempt in range(1, 3):  # 最多重试2次
+        try:
+            headers = {
+                "apikey": SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            }
+            url = f"{postgrest_url}/profiles"
+            params = {"wechat_nickname": "not.is.null", "select": "*"}
             
-            if resp.status_code == 200:
-                profiles = resp.json()
-                for p in profiles:
-                    db_nickname = p.get("wechat_nickname")
-                    if not db_nickname:
-                        continue
-                    # 对数据库里存的微信昵称也进行同维度的深度净化与去空格
-                    clean_db = re.sub(r"\s+", "", db_nickname).replace("\u2005", "").strip().lower()
-                    
-                    # 🚀 多重容错自适应条件：1.净化后完美一致；2.包含关系模糊匹配
-                    if clean_sender == clean_db or clean_sender in clean_db or clean_db in clean_sender:
-                        user_id = p.get("user_id")
-                        logger.info(f"🎯 [容错匹配成功] 微信发言人 [{wechat_nickname}] 成功自适应匹配绑定用户 [{db_nickname}] (user_id: {user_id})")
-                        return user_id
-    except Exception as e:
-        logger.error(f"🔴 [安全反查] 查询 profiles 发生异常: {e}")
+            logger.info(f"🔮 [DEBUG REST] 发起安全反查 -> URL: {url}, Key长度: {len(SUPABASE_SERVICE_KEY or '')}, 原始昵称: '{wechat_nickname}', 净化昵称: '{clean_sender}'")
+            
+            with httpx.Client() as client:
+                resp = client.get(url, params=params, headers=headers, timeout=10.0)
+                logger.info(f"🔮 [DEBUG REST] 收到响应 -> 状态码: {resp.status_code}, 返回数据量: {len(resp.json() if resp.status_code == 200 else [])}")
+                
+                if resp.status_code == 200:
+                    profiles = resp.json()
+                    for p in profiles:
+                        db_nickname = p.get("wechat_nickname")
+                        if not db_nickname:
+                            continue
+                        clean_db = re.sub(r"\s+", "", db_nickname).replace("\u2005", "").strip().lower()
+                        
+                        if clean_sender == clean_db or clean_sender in clean_db or clean_db in clean_sender:
+                            user_id = p.get("user_id")
+                            logger.info(f"🎯 [容错匹配成功] 微信发言人 [{wechat_nickname}] 成功自适应匹配绑定用户 [{db_nickname}] (user_id: {user_id})")
+                            return user_id
+                    break  # 200 但没匹配到，不需要重试
+                elif resp.status_code in (502, 503):
+                    logger.warning(f"⚠️ [REST 重试] PostgREST 返回 {resp.status_code}，{attempt}/2 次重试...")
+                    time.sleep(1)
+                    continue
+                else:
+                    logger.error(f"🔴 [REST 错误] 状态码: {resp.status_code}, 响应: {resp.text[:200]}")
+                    break
+        except Exception as e:
+            logger.error(f"🔴 [安全反查] 查询 profiles 发生异常: {e}")
+            if attempt < 2:
+                time.sleep(1)
+                continue
+            break
+    
     logger.warning(f"⚠️ [安全反查] 微信发言人 [{wechat_nickname}] 未在 profiles 表中匹配到任何绑定系统账号！")
     return None
 
