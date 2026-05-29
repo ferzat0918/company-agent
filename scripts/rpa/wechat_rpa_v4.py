@@ -609,17 +609,51 @@ def main():
                             unread_msgs.insert(0, m)
                         
                         valid_msgs = []
-                        for m in unread_msgs:
-                            if m.attr == "self" and s.name != "文件传输助手":
-                                continue
-                            is_group_msg = (m.sender != s.name and s.name != "文件传输助手")
-                            content = m.content
-                            if is_group_msg:
-                                if mention_1 not in content and mention_2 not in content:
+                        is_group_msg = (s.name != "文件传输助手" and any(m.sender != s.name for m in unread_msgs if m.attr != "self"))
+                        
+                        if not is_group_msg or s.name == "文件传输助手":
+                            # For private chats / file helper, keep all messages as is
+                            for m in unread_msgs:
+                                if m.attr == "self" and s.name != "文件传输助手":
                                     continue
-                                logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{m.sender}] 的 @ 提问！")
-                                content = content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
-                            valid_msgs.append((m.sender, content))
+                                valid_msgs.append((m.sender, m.content))
+                        else:
+                            # === Group Chats: Pre-merge unread messages from the same sender if they @'ed the bot ===
+                            mentions_by_sender = {}   # sender -> list of cleaned @ messages
+                            sender_all_contents = {}  # sender -> list of all their message contents in this batch
+                            
+                            for m in unread_msgs:
+                                if m.attr == "self" and s.name != "文件传输助手":
+                                    continue
+                                sender = m.sender
+                                content = m.content or ""
+                                
+                                if sender not in sender_all_contents:
+                                    sender_all_contents[sender] = []
+                                sender_all_contents[sender].append(content)
+                                
+                                # Check for @ mention
+                                is_mention = (mention_1 in content or mention_2 in content)
+                                if is_mention:
+                                    if sender not in mentions_by_sender:
+                                        mentions_by_sender[sender] = []
+                                    cleaned = content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
+                                    mentions_by_sender[sender].append(cleaned)
+                                    
+                            # Compile merged messages for active @ mentions
+                            for sender, clean_mentions in mentions_by_sender.items():
+                                all_contents = sender_all_contents.get(sender, [])
+                                cleaned_all_contents = []
+                                for orig_content in all_contents:
+                                    # Clean mention formatting
+                                    c = orig_content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
+                                    if c:
+                                        cleaned_all_contents.append(c)
+                                        
+                                # Merge all messages from this sender with newlines
+                                merged_content = "\n".join(cleaned_all_contents)
+                                logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{sender}] 的 @ 提问，成功预合并同一批次的 {len(all_contents)} 条上下文消息！")
+                                valid_msgs.append((sender, merged_content))
                     else:
                         # === Fallback mode: use sidebar preview (at least 1 message) ===
                         logger.info(f"⚡ [降级模式] 使用 sidebar 内容作为消息源")
