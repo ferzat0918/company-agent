@@ -97,6 +97,22 @@ executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="AIWor
 # Global WeChat binder
 wx = None
 
+GET_ALL_MSG_TIMEOUT = 5  # seconds before GetAllMessage() is considered hung
+
+def _safe_get_all_messages(timeout: float = GET_ALL_MSG_TIMEOUT):
+    """Run wx.GetAllMessage() in a daemon thread with a timeout guard.
+    Returns the message list, or None if it hangs."""
+    result = [None]
+    def worker():
+        result[0] = wx.GetAllMessage()
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        logger.warning(f"⏰ [超时保护] GetAllMessage() 超过 {timeout}s 未响应，本轮降级为 sidebar 模式")
+        return None
+    return result[0]
+
 def gen_supabase_jwt(user_id: str):
     payload = {
         "iss": "supabase",
@@ -542,42 +558,52 @@ def main():
                     wx.ChatWith(s.name)
                     time.sleep(0.4)
                     
-                    # Read ALL messages from the chat window (not just sidebar preview)
-                    # This catches rapid-fire messages that the sidebar would have overwritten
-                    msgs = wx.GetAllMessage()
-                    if not msgs:
-                        continue
+                    # Try GetAllMessage with timeout; fall back to sidebar if it hangs
+                    msgs = _safe_get_all_messages()
                     
-                    # Scan backwards from newest: collect messages until we hit our own last reply
-                    # This reliably extracts only the unread portion
-                    unread_msgs = []
-                    for m in reversed(msgs):
-                        if m.attr == "self" and s.name != "文件传输助手":
-                            break
-                        if m.attr == "system" or m.type == "time":
-                            continue
-                        unread_msgs.insert(0, m)
-                    
-                    # Filter and validate: group chats must @ us, clean up mention text
-                    valid_msgs = []
                     bot_name = os.environ.get("BOT_WECHAT_NICKNAME") or (wx.nickname if (wx and hasattr(wx, "nickname")) else None) or "扎特 Freddy"
                     mention_1 = f"@{bot_name}"
                     mention_2 = f"@{bot_name.split()[-1]}" if bot_name and len(bot_name.split()) > 1 else mention_1
-
-                    for m in unread_msgs:
-                        if m.attr == "self" and s.name != "文件传输助手":
-                            continue
-                        
-                        is_group_msg = (m.sender != s.name and s.name != "文件传输助手")
-                        content = m.content
-                        
-                        if is_group_msg:
-                            if mention_1 not in content and mention_2 not in content:
+                    
+                    if msgs:
+                        # === Full mode: scan chat window for all unread messages ===
+                        unread_msgs = []
+                        for m in reversed(msgs):
+                            if m.attr == "self" and s.name != "文件传输助手":
+                                break
+                            if m.attr == "system" or m.type == "time":
                                 continue
-                            logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{m.sender}] 的 @ 提问！")
-                            content = content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
-
-                        valid_msgs.append((m.sender, content))
+                            unread_msgs.insert(0, m)
+                        
+                        valid_msgs = []
+                        for m in unread_msgs:
+                            if m.attr == "self" and s.name != "文件传输助手":
+                                continue
+                            is_group_msg = (m.sender != s.name and s.name != "文件传输助手")
+                            content = m.content
+                            if is_group_msg:
+                                if mention_1 not in content and mention_2 not in content:
+                                    continue
+                                logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{m.sender}] 的 @ 提问！")
+                                content = content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
+                            valid_msgs.append((m.sender, content))
+                    else:
+                        # === Fallback mode: use sidebar preview (at least 1 message) ===
+                        logger.info(f"⚡ [降级模式] 使用 sidebar 内容作为消息源")
+                        sidebar = content_str
+                        sender = s.name
+                        # Parse group chat sidebar format: "sender：content"
+                        if "：" in sidebar or ":" in sidebar:
+                            sep = "：" if "：" in sidebar else ":"
+                            parts = sidebar.split(sep, 1)
+                            sender = parts[0].strip()
+                            sidebar = parts[1].strip()
+                        # Group @ check
+                        if sender != s.name and s.name != "文件传输助手":
+                            if mention_1 not in sidebar and mention_2 not in sidebar:
+                                continue
+                            sidebar = sidebar.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
+                        valid_msgs = [(sender, sidebar)]
                     
                     if not valid_msgs:
                         continue
