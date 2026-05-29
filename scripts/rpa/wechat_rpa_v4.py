@@ -258,13 +258,17 @@ def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wec
             target_files = []
             printed_message_ids = set()
             with httpx.Client() as client:
+                # connect 快速失败(10s), read 给足时间(5分钟, 沙盒执行可能很久)
+                stream_timeout = httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0)
                 with client.stream(
                     "POST",
                     f"{LANGGRAPH_API_URL}/threads/{thread_id}/runs/stream",
                     json=body,
                     headers=headers,
-                    timeout=90.0  # Safe timeout for complex deep thinking & sandboxed runs
+                    timeout=stream_timeout,
                 ) as response:
+                    logger.info(f"📡 SSE 连接已建立 (HTTP {response.status_code})")
+
                     if response.status_code != 200:
                         raise httpx.HTTPStatusError(
                             f"HTTP {response.status_code}",
