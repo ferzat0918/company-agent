@@ -80,12 +80,12 @@ class MemoryInjectMiddleware(AgentMiddleware):
             channel = configurable.get("channel") or metadata.get("channel", "web")
             chat_name = configurable.get("chat_name") or metadata.get("chat_name", "")
             sender = configurable.get("sender") or metadata.get("sender", "未知发送者")
+            if not user_id:
+                user_id = configurable.get("owner") or metadata.get("owner") or configurable.get("user_id") or metadata.get("user_id")
         except Exception:
             channel = "web"
             chat_name = ""
             sender = "未知发送者"
-
-
 
         self._last_user_id = user_id
         self._last_store = getattr(runtime, "store", None)
@@ -99,7 +99,7 @@ class MemoryInjectMiddleware(AgentMiddleware):
         # Re-read store/user_id on every model call — abefore_agent caches
         # them at agent start but the request's own runtime is the truth.
         runtime = request.runtime
-        user_id = self._get_user_id(runtime) if runtime else self._last_user_id
+        user_id = self._get_user_id(runtime) if runtime else None
         store = (getattr(runtime, "store", None) if runtime else None) or self._last_store
 
         try:
@@ -110,12 +110,15 @@ class MemoryInjectMiddleware(AgentMiddleware):
             channel = configurable.get("channel") or metadata.get("channel", "web")
             chat_name = configurable.get("chat_name") or metadata.get("chat_name", "")
             sender = configurable.get("sender") or metadata.get("sender", "未知发送者")
+            if not user_id:
+                user_id = configurable.get("owner") or metadata.get("owner") or configurable.get("user_id") or metadata.get("user_id")
         except Exception:
             channel = "web"
             chat_name = ""
             sender = "未知发送者"
 
-
+        if not user_id:
+            user_id = self._last_user_id
 
         # Keep cache fresh so the memory tool sees the same values.
         if user_id is not None:

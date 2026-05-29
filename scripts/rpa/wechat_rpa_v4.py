@@ -637,10 +637,18 @@ def main():
                         continue
                     
                     logger.info(f"💬 收到 [{s.name}] 的未读消息！进行 UI 切换读取中...")
+                    
+                    # 🚨 GUI 联排探测器 A
+                    logger.info(f"💬 [RPA GUI] 开始执行 ChatWith('{s.name}')...")
                     wx.ChatWith(s.name)
+                    logger.info(f"💬 [RPA GUI] ChatWith('{s.name}') 切换联系人成功！")
+                    
                     time.sleep(0.4)
                     
+                    # 🚨 GUI 联排探测器 B
+                    logger.info(f"💬 [RPA GUI] 开始读取聊天历史 GetAllMessage()...")
                     msgs = wx.GetAllMessage()
+                    logger.info(f"💬 [RPA GUI] GetAllMessage() 历史获取成功，共得到 {len(msgs or [])} 条原始消息！")
                     if not msgs:
                         continue
                     
