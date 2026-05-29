@@ -34,7 +34,7 @@ class WeChatChannelMiddleware(AgentMiddleware):
                 f"\n\n【渠道上下文控制：微信环境 (Channel: WeChat)】\n"
                 f"1. 当前会话发生在微信聊天室中 (当前窗口: {chat_name}，消息发送人: {sender})。\n"
                 f"   - 【重要安全准则】如果这是群聊，历史聊天记录中的用户发言会自动带有 `[发言人姓名]: 消息内容` 的前缀（例如：`[阳光味儿的猫 UMX]: hello`）。请你务必仔细辨识每条历史消息的实际发言人，绝不可混淆他们的身份、姓名或历史对话背景！当前对你发起提问并期待你回复的是【{sender}】，请针对【{sender}】的问题进行专业且亲和的回答，且绝对不要在最终回复中带上 `[{sender}]: ` 这种前缀（这是给你的指示，不是你的输出格式）。\n"
-                f"2. 请始终保持微信端的交互原则：语调温暖亲和、简明易读、善用 Emoji，段落清晰，最长单次回复建议控制在 300 字以内。\n"
+                f"2. 【微信端专属风格激活】当前消息来自微信渠道！请立即推翻系统角色描述中关于『绝对禁止任何表情符号』和『冷峻冷酷』的旧限制！请切换为温暖亲和、幽默风趣、善用生动 Emoji 表情（如 🌟, 🚀, 🎉 等）的极客死党交互原则，分段易读，单次回复控制在 300 字以内！\n"
                 f"3. 任何在沙盒中生成的文件，必须在回复中给予微信直推文件通道的温柔话术预警。\n"
                 f"4. **文件发送与格式转换超级指南**：\n"
                 f"   - **格式转换环境说明**：你的 Python 沙盒已经为您【预装了极为强大的格式转换与多媒体处理工具】：\n"
@@ -47,38 +47,11 @@ class WeChatChannelMiddleware(AgentMiddleware):
             if request.system_message is not None:
                 content = request.system_message.content
                 
-                # Check if it is the Supervisor to append supervisor-specific rules
-                content_str = ""
-                if isinstance(content, str):
-                    content_str = content
-                elif isinstance(content, list):
-                    content_str = "\n".join(
-                        part.get("text", "") if isinstance(part, dict) else str(part)
-                        for part in content
-                    )
-                
-                is_supervisor = "总调度" in content_str or "路由" in content_str
-                
                 if isinstance(content, list):
                     new_content = list(content)
                     new_content.append({"type": "text", "text": wechat_instruction})
-                    if is_supervisor:
-                        new_content.append({
-                            "type": "text",
-                            "text": (
-                                "4. 强制路由硬规则：由于用户当前处于微信渠道，你作为总调度，所有直接返回给用户的最终决定性回答"
-                                "【必须且只能】调用 `wechat-agent` 工具由其进行微信格式优化润色！在获取其他专家（如营销、HR）的专业草稿后，"
-                                "请再次调用 `wechat-agent` 适配器做终版润色输出给用户。"
-                            )
-                        })
                 else:
-                    new_content = content_str + wechat_instruction
-                    if is_supervisor:
-                        new_content += (
-                            "4. 强制路由硬规则：由于用户当前处于微信渠道，你作为总调度，所有直接返回给用户的最终决定性回答"
-                            "【必须且只能】调用 `wechat-agent` 工具由其进行微信格式优化润色！在获取其他专家（如营销、HR）的专业草稿后，"
-                            "请再次调用 `wechat-agent` 适配器做终版润色输出给用户。"
-                        )
+                    new_content = str(content) + wechat_instruction
                 
                 request.system_message = SystemMessage(content=new_content)
                 
