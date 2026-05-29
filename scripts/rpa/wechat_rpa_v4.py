@@ -156,11 +156,12 @@ def check_wechat_binding(wechat_nickname: str) -> str | None:
 
 def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wechat", sender: str = "未知发送者", user_id: str = FREDDY_SUB_UUID) -> tuple[str, list[str]]:
     """Invokes LangGraph and intercepts tool calls for send_wechat_file in the run stream."""
-    # Deterministically generate a persistent thread_id based on the chat_name (WeChat channel)
-    namespace = uuid.UUID(FREDDY_SUB_UUID)
+    # Deterministically generate a persistent thread_id scoped per user + chat_name
+    namespace = uuid.UUID(user_id)
     thread_id = str(uuid.uuid5(namespace, chat_name))
     
-    jwt_token = gen_supabase_jwt(FREDDY_SUB_UUID)
+    # JWT carries the REAL user_id so backend identity = this user → memory loads correctly
+    jwt_token = gen_supabase_jwt(user_id)
     headers = {
         "Authorization": f"Bearer {jwt_token}",
         "Content-Type": "application/json",

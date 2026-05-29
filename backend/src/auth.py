@@ -105,105 +105,41 @@ async def verify_supabase_jwt(authorization: str | None) -> dict:
 # Resource-level authorization: thread isolation per user
 # ──────────────────────────────────────────────────────────
 
-FREDDY_SUB_UUID = "d81a0391-2663-4f0b-ba89-39f17773a9a1"
-
-
-async def _get_profile_by_wechat_nickname(wechat_nickname: str) -> dict | None:
-    """Query Supabase profiles table by wechat_nickname with robust fuzzy/space-insensitive matching."""
-    if not wechat_nickname or wechat_nickname == "未知发送者":
-        return None
-        
-    import re
-    clean_sender = re.sub(r"\s+", "", wechat_nickname).replace("\u2005", "").strip().lower()
-    
-    if clean_sender in ("文件传输助手", "self", "filehelper"):
-        return {"user_id": FREDDY_SUB_UUID}
-        
-    print(f"[DEBUG AUTH] 开始查询并模糊匹配微信昵称: '{wechat_nickname}' (净化为: '{clean_sender}')", flush=True)
-    try:
-        async with httpx.AsyncClient() as client:
-            url = f"{_supabase_url}/rest/v1/profiles"
-            params = {"wechat_nickname": "not.is.null", "select": "*"}
-            headers = {
-                "apikey": _supabase_service_key,
-                "Authorization": f"Bearer {_supabase_service_key}",
-            }
-            resp = await client.get(url, params=params, headers=headers)
-            if resp.status_code == 200:
-                profiles = resp.json()
-                for p in profiles:
-                    db_nickname = p.get("wechat_nickname")
-                    if not db_nickname:
-                        continue
-                    clean_db = re.sub(r"\s+", "", db_nickname).replace("\u2005", "").strip().lower()
-                    if clean_sender == clean_db or clean_sender in clean_db or clean_db in clean_sender:
-                        print(f"[DEBUG AUTH] 🎯 [模糊匹配成功] 微信发言人 [{wechat_nickname}] 成功匹配绑定用户 [{db_nickname}] (user_id: {p.get('user_id')})", flush=True)
-                        return p
-            else:
-                print(f"[DEBUG AUTH] 查询 profiles 失败，状态码: {resp.status_code}", flush=True)
-    except Exception as e:
-        print(f"[DEBUG AUTH] 查询 profiles 发生异常: {e}", flush=True)
-    return None
-
-
 
 @auth.on.threads.create
 async def on_thread_create(ctx, value):
-    """Stamp every new thread with the owner's identity."""
-    print(f"[DEBUG AUTH] 进入 on_thread_create, 原始 value: {value}", flush=True)
+    """Stamp every new thread with the owner's identity.
+    
+    The JWT already carries the real user_id (set by RPA for wechat, or by
+    Supabase auth for web), so ctx.user.identity is always the correct owner.
+    No secondary nickname lookup is needed here.
+    """
     metadata = value.setdefault("metadata", {})
-    owner = ctx.user.identity
-    print(f"[DEBUG AUTH] 初始 owner: {owner}", flush=True)
-
-    # If created in the WeChat channel, try to bind to the real employee account
-    if metadata.get("channel") == "wechat":
-        # 优先使用具体的发言人 sender 进行反查绑定（防止群聊场景下直接查群名失败）
-        sender = metadata.get("sender")
-        chat_name = metadata.get("chat_name")
-        target_name = sender if (sender and sender != "未知发送者") else chat_name
-        print(f"[DEBUG AUTH] 检测到微信渠道, target_name: '{target_name}'", flush=True)
-        if target_name:
-            profile = await _get_profile_by_wechat_nickname(target_name)
-            if profile:
-                owner = profile.get("user_id") or owner
-                print(f"[DEBUG AUTH] 成功查到绑定关系! 新 owner 设定为: {owner}", flush=True)
-            else:
-                print(f"[DEBUG AUTH] 未查到绑定关系, owner 保持默认", flush=True)
-
-    metadata["owner"] = owner
-    print(f"[DEBUG AUTH] 最终创建的 thread value: {value}", flush=True)
+    metadata["owner"] = ctx.user.identity
     return value
 
 
 @auth.on.threads.read
 async def on_thread_read(ctx, value):
-    """Only return threads owned by the current user (except WeChat RPA superuser)."""
-    if ctx.user.identity == FREDDY_SUB_UUID:
-        return {}
+    """Only return threads owned by the current user."""
     return {"owner": ctx.user.identity}
 
 
 @auth.on.threads.update
 async def on_thread_update(ctx, value):
-    """Only allow updating threads owned by the current user (except WeChat RPA superuser)."""
-    if ctx.user.identity == FREDDY_SUB_UUID:
-        return {}
+    """Only allow updating threads owned by the current user."""
     return {"owner": ctx.user.identity}
 
 
 @auth.on.threads.delete
 async def on_thread_delete(ctx, value):
-    """Only allow deleting threads owned by the current user (except WeChat RPA superuser)."""
-    if ctx.user.identity == FREDDY_SUB_UUID:
-        return {}
+    """Only allow deleting threads owned by the current user."""
     return {"owner": ctx.user.identity}
 
 
 @auth.on.threads.search
 async def on_thread_search(ctx, value):
-    """Only list threads owned by the current user (except WeChat RPA superuser)."""
-    if ctx.user.identity == FREDDY_SUB_UUID:
-        return {}
+    """Only list threads owned by the current user."""
     return {"owner": ctx.user.identity}
 
 
