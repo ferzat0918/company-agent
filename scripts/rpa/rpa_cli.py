@@ -13,6 +13,11 @@ import sys
 import subprocess
 import time
 
+# Force UTF-8 output on Windows (cmd.exe defaults to GBK which chokes on emoji)
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PID_FILE = os.path.join(SCRIPT_DIR, "logs", "rpa.pid")
 LOG_FILE = os.path.join(SCRIPT_DIR, "logs", "rpa_client.log")
