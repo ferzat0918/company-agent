@@ -89,6 +89,7 @@ thinking_lock = threading.Lock() # Lock to synchronize thinking_chats
 chat_queues = {}                 # chat_name -> list of (sender, content)
 queues_lock = threading.Lock()   # Lock to synchronize chat_queues
 listen_chats = []                # Target chats to whitelist (configured at startup)
+last_seen_content = {}           # chat_name -> last sidebar content (dedup against stale isnew)
 
 # Background Thread Pool for LangGraph workers
 executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="AIWorker")
@@ -529,8 +530,13 @@ def main():
                     if listen_chats and s.name not in listen_chats:
                         continue
                     
-                    # Determine sender and content directly from the session sidebar item
+                    # Dedup: skip if sidebar preview hasn't changed since last poll
                     content_str = s.content or ""
+                    if last_seen_content.get(s.name) == content_str:
+                        continue
+                    last_seen_content[s.name] = content_str
+                    
+                    # Determine sender and content directly from the session sidebar item
                     is_group = False
                     sender = s.name
                     raw_content = content_str
