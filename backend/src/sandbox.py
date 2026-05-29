@@ -111,6 +111,10 @@ def _download_dir_recursive(sandbox, remote_dir: str, local_dir: str):
     except Exception as fs_err:
         print(f"[Daytona] Failed to list remote dir {remote_dir}: {str(fs_err)}")
 
+# Per-thread sandbox invocation counter to prevent infinite retry loops
+_sandbox_call_counts: dict[str, int] = {}  # thread_id -> count
+MAX_SANDBOX_CALLS_PER_SESSION = 15  # hard cap per thread run
+
 def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
     """在隔离的 Daytona Cloud 沙盒环境中执行 Python 代码。"""
     try:
@@ -122,6 +126,15 @@ def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
         thread_id = "default"
         if config and isinstance(config, dict):
             thread_id = config.get("configurable", {}).get("thread_id", "default")
+        
+        # === 调用次数熔断：防止 AI 无限重试浪费 token ===
+        _sandbox_call_counts[thread_id] = _sandbox_call_counts.get(thread_id, 0) + 1
+        call_num = _sandbox_call_counts[thread_id]
+        if call_num > MAX_SANDBOX_CALLS_PER_SESSION:
+            return (
+                f"⚠️ 沙盒调用次数已达上限 ({MAX_SANDBOX_CALLS_PER_SESSION} 次)。"
+                f"请停止重试，将当前进展和遇到的问题如实告知用户，让用户决定下一步。"
+            )
             
         workspace_dir = os.path.join(workspace_parent, thread_id)
         
@@ -137,16 +150,18 @@ def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
 
         # 2. 定义预制镜像以避免每次运行临时下载库并对齐 /workspace 工作目录
         # 预装 ffmpeg, librsvg2-bin, poppler-utils 等格式转换与文档提取系统工具，以及 Pillow, cairosvg, moviepy 等 Python 库
+        # 预装 fonts-noto-cjk 中文字体，防止 AI 反复下载字体浪费 token
         custom_image = (
             Image.debian_slim("3.11")
             .run_commands(
                 "apt-get update",
-                "apt-get install -y --no-install-recommends ffmpeg librsvg2-bin poppler-utils libcairo2-dev build-essential pkg-config libffi-dev",
+                "apt-get install -y --no-install-recommends ffmpeg librsvg2-bin poppler-utils libcairo2-dev build-essential pkg-config libffi-dev fonts-noto-cjk",
                 "rm -rf /var/lib/apt/lists/*"
             )
             .pip_install([
                 "pandas", "openpyxl", "python-docx", "pdfplumber", "matplotlib",
-                "cairosvg", "Pillow", "svglib", "pdf2image", "python-pptx", "requests", "jinja2", "pypdf", "moviepy"
+                "cairosvg", "Pillow", "svglib", "pdf2image", "python-pptx", "requests", "jinja2", "pypdf", "moviepy",
+                "fpdf2", "fonttools", "reportlab",
             ])
             .workdir("/workspace")
         )
@@ -245,7 +260,9 @@ sandbox_tool = StructuredTool.from_function(
     description=(
         "在安全的隔离沙盒中运行 Python 代码来处理、分析、编辑或写入文件。 "
         "使用此工具来读取/写入 Excel、Word、PDF 等文档。工作目录为 `./`。 "
-        "如果用户上传了文件，它们已自动保存在当前工作目录下，你可以直接用代码读取并处理。"
+        "如果用户上传了文件，它们已自动保存在当前工作目录下，你可以直接用代码读取并处理。 "
+        "沙盒已预装：pandas, openpyxl, python-docx, pdfplumber, matplotlib, Pillow, fpdf2, fonttools, reportlab, pypdf, cairosvg, moviepy 等库，无需 pip install。 "
+        "中文字体已预装在系统路径 /usr/share/fonts/opentype/noto/ (Noto Sans CJK)，可直接使用，无需下载。"
     ),
     args_schema=SandboxExecutionInput,
 )
