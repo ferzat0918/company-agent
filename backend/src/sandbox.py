@@ -157,6 +157,36 @@ def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
             CreateSandboxFromImageParams(image=custom_image)
         )
 
+        # 准备在宿主机打包技能目录并同步到沙盒，遵循 Hermes-Agent 架构的最佳实践
+        local_tar_path = None
+        try:
+            import tempfile
+            import tarfile
+            skills_dir = os.path.join(project_root, "skills")
+            if os.path.exists(skills_dir):
+                temp_dir = tempfile.gettempdir()
+                local_tar_path = os.path.join(temp_dir, f"skills_{thread_id}.tar.gz")
+                
+                # 宿主机极速压缩打包整个 skills/ 目录 (归档名设为 "skills" 使得解压到根目录后路径对齐为 /skills)
+                with tarfile.open(local_tar_path, "w:gz") as tar:
+                    tar.add(skills_dir, arcname="skills")
+                
+                # 上传压缩包至沙盒根目录
+                sandbox.fs.upload_file(local_tar_path, "/skills.tar.gz")
+                
+                # 沙盒内静默解压至根目录以匹配 /skills 绝对路径，并清理沙盒内的临时压缩包
+                init_skills_code = (
+                    "import os, tarfile\n"
+                    "if os.path.exists('/skills.tar.gz'):\n"
+                    "    with tarfile.open('/skills.tar.gz', 'r:gz') as tar:\n"
+                    "        tar.extractall(path='/')\n"
+                    "    os.remove('/skills.tar.gz')\n"
+                )
+                sandbox.process.code_run(init_skills_code)
+                print(f"[Daytona] Successfully pre-synced host skills/ to sandbox /skills for thread [{thread_id}]")
+        except Exception as skills_sync_err:
+            print(f"[Daytona] Skills pre-sync failed: {str(skills_sync_err)}")
+
         try:
             # 3. 将本地 workspace 下所有已有的用户上传文件（排除临时文件/隐藏文件）上传到沙盒中
             for filename in os.listdir(workspace_dir):
@@ -197,6 +227,13 @@ def execute_python_in_sandbox(code: str, config: RunnableConfig = None) -> str:
                 daytona.delete(sandbox)
             except Exception as cleanup_err:
                 print(f"[Daytona] Failed to remove sandbox: {str(cleanup_err)}")
+            
+            # 8. 清理宿主机上的临时打包技能文件，防止磁盘脏文件堆积
+            if local_tar_path and os.path.exists(local_tar_path):
+                try:
+                    os.remove(local_tar_path)
+                except Exception:
+                    pass
 
     except Exception as e:
         return f"沙盒执行过程中发生异常: {str(e)}"
