@@ -11,6 +11,7 @@ from logging.handlers import RotatingFileHandler
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 import re
+import ctypes
 from wxauto4 import WeChat
 from dotenv import load_dotenv
 
@@ -436,6 +437,23 @@ def self_healing_reconnect():
 
 def main():
     global listen_chats
+    
+    # === 强制禁用 Windows 终端 QuickEdit 模式 ===
+    # 点击终端窗口会进入"选择文本"状态，冻结整个进程（无法滚轮、Ctrl+C 无效）
+    # 不管是 cmd.exe 还是 PowerShell，统一在代码里禁用
+    if os.name == "nt":
+        try:
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+            mode = ctypes.c_ulong()
+            kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+            mode.value &= ~0x0040  # 关闭 ENABLE_QUICK_EDIT_MODE
+            mode.value |= 0x0080   # 开启 ENABLE_EXTENDED_FLAGS
+            kernel32.SetConsoleMode(handle, mode)
+            print("✅ 已自动禁用终端 QuickEdit 模式（防止点击窗口导致程序冻结）")
+        except Exception:
+            pass
+    
     print("=" * 75)
     print("🤖 WeChat PC 4.x RPA + LangGraph 生产级多线程自愈守护进程")
     print("=" * 75)
