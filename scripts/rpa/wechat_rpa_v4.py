@@ -7,6 +7,8 @@ import httpx
 import jwt
 import threading
 import logging
+import signal
+import atexit
 from logging.handlers import RotatingFileHandler
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
@@ -463,6 +465,19 @@ def main():
     print("   3. 所有网络请求异步并发执行，主 GUI 操作单线程排队，绝无竞态冲突。")
     print("=" * 75)
 
+    # === PID file for headless service management ===
+    pid_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "rpa.pid")
+    os.makedirs(os.path.dirname(pid_file), exist_ok=True)
+    with open(pid_file, "w") as f:
+        f.write(str(os.getpid()))
+    
+    def _cleanup_pid():
+        try:
+            os.remove(pid_file)
+        except FileNotFoundError:
+            pass
+    atexit.register(_cleanup_pid)
+
     # Initial WeChat bind
     if not bind_wechat():
         logger.warning("首次绑定失败，进入自愈自动搜索程序...")
@@ -647,4 +662,14 @@ def main():
         time.sleep(POLL_INTERVAL)
 
 if __name__ == "__main__":
+    # Graceful shutdown on SIGTERM (sent by taskkill)
+    def _handle_term(signum, frame):
+        logger.info("👋 收到 SIGTERM，正在安全停止...")
+        sys.exit(0)
+    
+    try:
+        signal.signal(signal.SIGTERM, _handle_term)
+    except (OSError, ValueError):
+        pass  # Not all platforms support SIGTERM handler
+    
     main()
