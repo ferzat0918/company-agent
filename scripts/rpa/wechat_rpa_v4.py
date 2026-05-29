@@ -528,66 +528,48 @@ def main():
                     if listen_chats and s.name not in listen_chats:
                         continue
                     
+                    # Determine sender and content directly from the session sidebar item
+                    content_str = s.content or ""
+                    is_group = False
+                    sender = s.name
+                    raw_content = content_str
+                    
+                    # Heuristic to detect group chats in WeChat sidebar:
+                    if ("：" in content_str or ":" in content_str) and (s.name == "AI先锋小队" or "群" in s.name or "队" in s.name or "组" in s.name or "会" in s.name or "交流" in s.name or "channel" in s.name.lower()):
+                        is_group = True
+                        if "：" in content_str:
+                            parts = content_str.split("：", 1)
+                        else:
+                            parts = content_str.split(":", 1)
+                        sender = parts[0].strip()
+                        raw_content = parts[1].strip()
+                    
+                    if not sender:
+                        sender = s.name
+                        
+                    logger.info(f"🔍 [DEBUG MSG] sidebar parsed -> sender: '{sender}', is_group: {is_group}, content: '{raw_content}'")
+                    
+                    # Extract and validate unread messages
+                    bot_name = os.environ.get("BOT_WECHAT_NICKNAME") or (wx.nickname if (wx and hasattr(wx, "nickname")) else None) or "扎特 Freddy"
+                    mention_1 = f"@{bot_name}"
+                    mention_2 = f"@{bot_name.split()[-1]}" if bot_name and len(bot_name.split()) > 1 else mention_1
+                    
+                    if is_group:
+                        if mention_1 not in raw_content and mention_2 not in raw_content:
+                            continue
+                        logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{sender}] 的 @ 提问！")
+                        raw_content = raw_content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
+
+                    valid_msgs = [(sender, raw_content)]
+                    
                     logger.info(f"💬 收到 [{s.name}] 的未读消息！进行 UI 切换读取中...")
                     
                     # 🚨 GUI 联排探测器 A
                     logger.info(f"💬 [RPA GUI] 开始执行 ChatWith('{s.name}')...")
                     wx.ChatWith(s.name)
-                    logger.info(f"💬 [RPA GUI] ChatWith('{s.name}') 切换联系人成功！")
+                    logger.info(f"💬 [RPA GUI] ChatWith('{s.name}') 切换联系人成功并清除未读红点！")
                     
                     time.sleep(0.4)
-                    
-                    # 🚨 GUI 联排探测器 B
-                    logger.info(f"💬 [RPA GUI] 开始读取聊天历史 GetAllMessage()...")
-                    msgs = wx.GetAllMessage()
-                    if msgs:
-                        logger.info(f"🔍 [DEBUG MSG] 获取到 {len(msgs)} 条消息，详情如下：")
-                        for idx, m in enumerate(msgs):
-                            logger.info(f"  [{idx}] sender: '{m.sender}', attr: '{m.attr}', type: '{m.type}', content: '{m.content}'")
-
-                    logger.info(f"💬 [RPA GUI] GetAllMessage() 历史获取成功，共得到 {len(msgs or [])} 条原始消息！")
-                    if not msgs:
-                        continue
-                    
-                    # 采用高可靠自适应双重校验提取未读消息，防止 new_count 识别等错误
-                    unread_msgs = []
-                    for m in reversed(msgs):
-                        if m.attr == "self" and s.name != "文件传输助手":
-                            # 扫到自己发的消息，说明在此之前的他人消息都已处理过，停止扫描
-                            break
-                        if m.attr == "system" or m.type == "time":
-                            continue
-                        unread_msgs.insert(0, m)
-                    
-                    # Extract and validate unread messages
-                    valid_msgs = []
-                    # 优先从环境变量或 .env 中读取机器人自己的微信昵称，其次从 wxauto 属性中读取，最后兜底
-                    bot_name = os.environ.get("BOT_WECHAT_NICKNAME") or (wx.nickname if (wx and hasattr(wx, "nickname")) else None) or "扎特 Freddy"
-                    mention_1 = f"@{bot_name}"
-                    mention_2 = f"@{bot_name.split()[-1]}" if bot_name and len(bot_name.split()) > 1 else mention_1
-
-                    for m in unread_msgs:
-                        # Double protection: Filter out self messages
-                        if m.attr == "self" and s.name != "文件传输助手":
-                            continue
-                        
-                        # Group chat check: if it is a group chat message, it MUST @ us!
-                        is_group_msg = (m.sender != s.name and s.name != "文件传输助手")
-                        content = m.content
-                        
-                        if is_group_msg:
-                            # Perform mention check
-                            if mention_1 not in content and mention_2 not in content:
-                                continue
-                                
-                            logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{m.sender}] 的 @ 提问！")
-                            # Clean up the @ mention prefix and WeChat zero-width spaces (\u2005) for better prompt quality
-                            content = content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
-
-                        valid_msgs.append((m.sender, content))
-                    
-                    if not valid_msgs:
-                        continue
                     
                     # Add to chat room sequential queue
                     with queues_lock:
