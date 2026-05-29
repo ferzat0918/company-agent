@@ -154,147 +154,39 @@ def check_wechat_binding(wechat_nickname: str) -> str | None:
     logger.warning(f"⚠️ [安全反查] 微信发言人 [{wechat_nickname}] 未在 profiles 表中匹配到任何绑定系统账号！")
     return None
 
-def trigger_thread_summarize_and_archive(user_id: str, old_thread_id: str):
-    """静默发送 __summarize_memory__ 并等待大模型高优先级同步总结，完成后归档 thread"""
-    jwt_token = gen_supabase_jwt(user_id)
-    headers = {
-        "Authorization": f"Bearer {jwt_token}",
-        "Content-Type": "application/json",
-        "Accept": "text/event-stream"
-    }
-    
-    logger.info(f"💾 [记忆保护] 正在向旧活跃 Thread [{old_thread_id}] 同步发送记忆总结指令...")
-    body = {
-        "assistant_id": ASSISTANT_ID,
-        "input": {
-            "messages": [{"type": "human", "content": "__summarize_memory__"}]
-        },
-        "stream_mode": ["values"],
-    }
-    try:
-        with httpx.Client() as client:
-            with client.stream(
-                "POST",
-                f"{LANGGRAPH_API_URL}/threads/{old_thread_id}/runs/stream",
-                json=body,
-                headers=headers,
-                timeout=180.0
-            ) as response:
-                if response.status_code == 200:
-                    for line in response.iter_lines():
-                        pass
-            logger.info(f"✨ [记忆保护] 旧 Thread [{old_thread_id}] 的长期记忆自动提炼与归纳归集成功完成！")
-    except Exception as e:
-        logger.error(f"🔴 [记忆保护] 触发 __summarize_memory__ 时出错: {e}")
-        
-    logger.info(f"📦 正在标记旧活跃 Thread [{old_thread_id}] 为 is_active = false...")
-    try:
-        with httpx.Client() as client:
-            resp = client.patch(
-                f"{LANGGRAPH_API_URL}/threads/{old_thread_id}",
-                json={
-                    "metadata": {
-                        "is_active": False
-                    }
-                },
-                headers=headers,
-                timeout=10.0
-            )
-            if resp.status_code == 200:
-                logger.info(f"✅ 旧 Thread [{old_thread_id}] 成功归档。")
-    except Exception as e:
-        logger.error(f"🔴 归档旧 Thread [{old_thread_id}] 时出错: {e}")
-
-def get_or_create_active_wechat_thread(user_id: str, chat_name: str, sender: str) -> str:
-    """获取该用户当前活跃的 wechat 渠道会话 thread_id。
-    1. 查找 metadata 中 channel == 'wechat', owner == user_id, is_active == true 且在 30 天内的 thread。
-    2. 如果存在，直接复用。
-    3. 如果超过 30 天或不存在活跃 thread，先自动触发旧活跃会话 of __summarize_memory__，然后再归档并开辟全新活跃 thread。
-    """
-    jwt_token = gen_supabase_jwt(user_id)
-    headers = {
-        "Authorization": f"Bearer {jwt_token}",
-        "Content-Type": "application/json"
-    }
-    
-    active_thread_id = None
-    try:
-        with httpx.Client() as client:
-            body = {
-                "metadata": {
-                    "channel": "wechat",
-                    "owner": user_id,
-                    "sender": sender,
-                    "is_active": True
-                },
-                "limit": 1
-            }
-            resp = client.post(f"{LANGGRAPH_API_URL}/threads/search", json=body, headers=headers, timeout=10.0)
-            if resp.status_code == 200:
-                threads = resp.json()
-                if threads and len(threads) > 0:
-                    active_thread = threads[0]
-                    active_thread_id = active_thread.get("thread_id")
-                    created_at_str = active_thread.get("created_at")
-                    
-                    from datetime import datetime, timezone
-                    try:
-                        created_time = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-                        now = datetime.now(timezone.utc)
-                        delta = (now - created_time).total_seconds()
-                        if delta >= 30 * 86400:
-                            logger.info(f"⏳ 检测到微信活跃 Thread [{active_thread_id}] 已建于 {created_at_str} (超过30天)，正在触发自动归档轮转...")
-                            trigger_thread_summarize_and_archive(user_id, active_thread_id)
-                            active_thread_id = None
-                        else:
-                            logger.info(f"🔄 微信活跃 Thread [{active_thread_id}] 在 30 天安全期内，直接复用。")
-                    except Exception as parse_err:
-                        logger.error(f"解析 Thread 时间出错: {parse_err}，强制新建 Thread。")
-                        active_thread_id = None
-    except Exception as e:
-        logger.error(f"🔴 获取微信活跃 Thread 时出错: {e}")
-        
-    if active_thread_id:
-        return active_thread_id
-        
-    new_thread_id = str(uuid.uuid4())
-    logger.info(f"🆕 正在为用户 [{sender}] 开启全新活跃微信 Thread: [{new_thread_id}]")
-    try:
-        with httpx.Client() as client:
-            resp = client.post(
-                f"{LANGGRAPH_API_URL}/threads",
-                json={
-                    "thread_id": new_thread_id,
-                    "metadata": {
-                        "channel": "wechat",
-                        "owner": user_id,
-                        "chat_name": chat_name,
-                        "sender": sender,
-                        "is_active": True
-                    }
-                },
-                headers=headers,
-                timeout=10.0
-            )
-            if resp.status_code == 200:
-                logger.info(f"✅ 成功创建并记录全新微信 Thread [{new_thread_id}]！")
-                return new_thread_id
-    except Exception as e:
-        logger.error(f"🔴 创建微信全新 Thread 失败: {e}")
-        
-    return new_thread_id
-
 def invoke_langgraph_with_retry(chat_name: str, prompt: str, channel: str = "wechat", sender: str = "未知发送者", user_id: str = FREDDY_SUB_UUID) -> tuple[str, list[str]]:
     """Invokes LangGraph and intercepts tool calls for send_wechat_file in the run stream."""
-    # 动态获取或轮转 30 天活跃 Thread
-    thread_id = get_or_create_active_wechat_thread(user_id, chat_name, sender)
+    # Deterministically generate a persistent thread_id based on the chat_name (WeChat channel)
+    namespace = uuid.UUID(FREDDY_SUB_UUID)
+    thread_id = str(uuid.uuid5(namespace, chat_name))
     
-    jwt_token = gen_supabase_jwt(user_id)
+    jwt_token = gen_supabase_jwt(FREDDY_SUB_UUID)
     headers = {
         "Authorization": f"Bearer {jwt_token}",
         "Content-Type": "application/json",
         "Accept": "text/event-stream"
     }
+    
+    # 1. Autocreate thread in LangGraph if it doesn't exist
+    try:
+        with httpx.Client() as client:
+            client.post(
+                f"{LANGGRAPH_API_URL}/threads",
+                json={
+                    "thread_id": thread_id,
+                    "metadata": {
+                        "channel": channel,
+                        "chat_name": chat_name,
+                        "sender": sender,
+                        "owner": user_id  # Passed so that the backend's auth.py can bind/update it to the real user_id
+                    }
+                },
+                headers=headers,
+                timeout=5.0
+            )
+    except Exception:
+        pass  # Already exists, proceed
+        
     body = {
         "assistant_id": ASSISTANT_ID,
         "input": {
@@ -648,6 +540,11 @@ def main():
                     # 🚨 GUI 联排探测器 B
                     logger.info(f"💬 [RPA GUI] 开始读取聊天历史 GetAllMessage()...")
                     msgs = wx.GetAllMessage()
+                    if msgs:
+                        logger.info(f"🔍 [DEBUG MSG] 获取到 {len(msgs)} 条消息，详情如下：")
+                        for idx, m in enumerate(msgs):
+                            logger.info(f"  [{idx}] sender: '{m.sender}', attr: '{m.attr}', type: '{m.type}', content: '{m.content}'")
+
                     logger.info(f"💬 [RPA GUI] GetAllMessage() 历史获取成功，共得到 {len(msgs or [])} 条原始消息！")
                     if not msgs:
                         continue

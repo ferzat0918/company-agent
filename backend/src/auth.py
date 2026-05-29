@@ -109,32 +109,42 @@ FREDDY_SUB_UUID = "d81a0391-2663-4f0b-ba89-39f17773a9a1"
 
 
 async def _get_profile_by_wechat_nickname(wechat_nickname: str) -> dict | None:
-    """Query Supabase profiles table by wechat_nickname."""
-    print(f"[DEBUG AUTH] 开始查询微信昵称: '{wechat_nickname}'", flush=True)
-    print(f"[DEBUG AUTH] Supabase URL: '{_supabase_url}'", flush=True)
-    key_info = f"len={len(_supabase_service_key or '')}" if _supabase_service_key else "None"
-    print(f"[DEBUG AUTH] Service Key Info: {key_info}", flush=True)
+    """Query Supabase profiles table by wechat_nickname with robust fuzzy/space-insensitive matching."""
+    if not wechat_nickname or wechat_nickname == "未知发送者":
+        return None
+        
+    import re
+    clean_sender = re.sub(r"\s+", "", wechat_nickname).replace("\u2005", "").strip().lower()
+    
+    if clean_sender in ("文件传输助手", "self", "filehelper"):
+        return {"user_id": FREDDY_SUB_UUID}
+        
+    print(f"[DEBUG AUTH] 开始查询并模糊匹配微信昵称: '{wechat_nickname}' (净化为: '{clean_sender}')", flush=True)
     try:
         async with httpx.AsyncClient() as client:
             url = f"{_supabase_url}/rest/v1/profiles"
-            params = {"wechat_nickname": f"eq.{wechat_nickname}", "select": "*"}
+            params = {"wechat_nickname": "not.is.null", "select": "*"}
             headers = {
                 "apikey": _supabase_service_key,
                 "Authorization": f"Bearer {_supabase_service_key}",
             }
             resp = await client.get(url, params=params, headers=headers)
-            print(f"[DEBUG AUTH] Supabase 返回状态码: {resp.status_code}", flush=True)
             if resp.status_code == 200:
-                data = resp.json()
-                print(f"[DEBUG AUTH] 查询成功，匹配记录数: {len(data)}", flush=True)
-                if data:
-                    print(f"[DEBUG AUTH] 匹配到的首条记录: {data[0]}", flush=True)
-                    return data[0]
+                profiles = resp.json()
+                for p in profiles:
+                    db_nickname = p.get("wechat_nickname")
+                    if not db_nickname:
+                        continue
+                    clean_db = re.sub(r"\s+", "", db_nickname).replace("\u2005", "").strip().lower()
+                    if clean_sender == clean_db or clean_sender in clean_db or clean_db in clean_sender:
+                        print(f"[DEBUG AUTH] 🎯 [模糊匹配成功] 微信发言人 [{wechat_nickname}] 成功匹配绑定用户 [{db_nickname}] (user_id: {p.get('user_id')})", flush=True)
+                        return p
             else:
-                print(f"[DEBUG AUTH] 查询失败，返回文本: {resp.text}", flush=True)
+                print(f"[DEBUG AUTH] 查询 profiles 失败，状态码: {resp.status_code}", flush=True)
     except Exception as e:
-        print(f"[DEBUG AUTH] 查询发生异常: {e}", flush=True)
+        print(f"[DEBUG AUTH] 查询 profiles 发生异常: {e}", flush=True)
     return None
+
 
 
 @auth.on.threads.create
