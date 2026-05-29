@@ -85,19 +85,7 @@ class MemoryInjectMiddleware(AgentMiddleware):
             chat_name = ""
             sender = "未知发送者"
 
-        if channel == "wechat":
-            target_name = sender if (sender and sender != "未知发送者") else chat_name
-            if target_name:
-                try:
-                    from ..profiles import get_profile_by_wechat_nickname
-                    profile = await get_profile_by_wechat_nickname(target_name)
-                    if profile and profile.user_id:
-                        user_id = profile.user_id
-                    else:
-                        user_id = f"wechat_{target_name}"
-                except Exception as e:
-                    print(f"Error mapping wechat nickname {target_name} to user_id: {e}")
-                    user_id = f"wechat_{target_name}"
+
 
         self._last_user_id = user_id
         self._last_store = getattr(runtime, "store", None)
@@ -127,19 +115,7 @@ class MemoryInjectMiddleware(AgentMiddleware):
             chat_name = ""
             sender = "未知发送者"
 
-        if channel == "wechat":
-            target_name = sender if (sender and sender != "未知发送者") else chat_name
-            if target_name:
-                try:
-                    from ..profiles import get_profile_by_wechat_nickname
-                    profile = await get_profile_by_wechat_nickname(target_name)
-                    if profile and profile.user_id:
-                        user_id = profile.user_id
-                    else:
-                        user_id = f"wechat_{target_name}"
-                except Exception as e:
-                    print(f"Error mapping wechat nickname {target_name} to user_id: {e}")
-                    user_id = f"wechat_{target_name}"
+
 
         # Keep cache fresh so the memory tool sees the same values.
         if user_id is not None:

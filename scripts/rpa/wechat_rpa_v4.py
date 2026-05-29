@@ -231,10 +231,11 @@ def get_or_create_active_wechat_thread(user_id: str, chat_name: str, sender: str
             }
             resp = client.post(f"{LANGGRAPH_API_URL}/threads/search", json=body, headers=headers, timeout=10.0)
             if resp.status_code == 200:
-                threads = resp.json().get("results", [])
-                if threads:
-                    active_thread_id = threads[0].get("thread_id")
-                    created_at_str = threads[0].get("created_at")
+                threads = resp.json()
+                if threads and len(threads) > 0:
+                    active_thread = threads[0]
+                    active_thread_id = active_thread.get("thread_id")
+                    created_at_str = active_thread.get("created_at")
                     
                     from datetime import datetime, timezone
                     try:
