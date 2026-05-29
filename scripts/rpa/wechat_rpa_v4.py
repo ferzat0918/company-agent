@@ -381,6 +381,10 @@ def main():
         logger.warning("首次绑定失败，进入自愈自动搜索程序...")
         self_healing_reconnect()
 
+    # Get and log self nickname for group @ mention detection
+    bot_name = os.environ.get("BOT_WECHAT_NICKNAME") or (wx.nickname if (wx and hasattr(wx, "nickname")) else None) or "扎特 Freddy"
+    logger.info(f"🤖 [机器人身份识别] 当前监听的微信群聊 @ 昵称为: [@{bot_name}] (如需修改，请在 .env 中设置 BOT_WECHAT_NICKNAME)")
+
     listen_env = os.environ.get("LISTEN_CHATS", "").strip()
     if listen_env:
         listen_chats = [item.strip() for item in listen_env.split(",") if item.strip()]
@@ -493,28 +497,33 @@ def main():
                     if not msgs:
                         continue
                     
-                    new_count = s.new_count if s.new_count > 0 else 1
-                    unread_msgs = msgs[-new_count:]
+                    # 采用高可靠自适应双重校验提取未读消息，防止 new_count 识别等错误
+                    unread_msgs = []
+                    for m in reversed(msgs):
+                        if m.attr == "self" and s.name != "文件传输助手":
+                            # 扫到自己发的消息，说明在此之前的他人消息都已处理过，停止扫描
+                            break
+                        if m.attr == "system" or m.type == "time":
+                            continue
+                        unread_msgs.insert(0, m)
                     
                     # Extract and validate unread messages
                     valid_msgs = []
+                    # 优先从环境变量或 .env 中读取机器人自己的微信昵称，其次从 wxauto 属性中读取，最后兜底
+                    bot_name = os.environ.get("BOT_WECHAT_NICKNAME") or (wx.nickname if (wx and hasattr(wx, "nickname")) else None) or "扎特 Freddy"
+                    mention_1 = f"@{bot_name}"
+                    mention_2 = f"@{bot_name.split()[-1]}" if bot_name and len(bot_name.split()) > 1 else mention_1
+
                     for m in unread_msgs:
-                        # Loopback protection: Filter out self messages (except in File Transfer Helper for self testing)
+                        # Double protection: Filter out self messages
                         if m.attr == "self" and s.name != "文件传输助手":
-                            continue
-                        if m.attr == "system" or m.type == "time":
                             continue
                         
                         # Group chat check: if it is a group chat message, it MUST @ us!
-                        # We identify group chat messages when s.name (session name) is different from m.sender (sender name)
                         is_group_msg = (m.sender != s.name and s.name != "文件传输助手")
                         content = m.content
                         
                         if is_group_msg:
-                            our_name = wx.nickname if (wx and hasattr(wx, "nickname")) else "扎特 Freddy"
-                            mention_1 = f"@{our_name}"
-                            mention_2 = f"@{our_name.split()[-1]}" if our_name and len(our_name.split()) > 1 else mention_1
-                            
                             # Perform mention check
                             if mention_1 not in content and mention_2 not in content:
                                 continue
