@@ -110,8 +110,8 @@ def check_wechat_binding(wechat_nickname: str) -> str | None:
     """根据微信发言人昵称向 Supabase REST 接口反查 profiles 绑定关系，获取 user_id"""
     if not wechat_nickname or wechat_nickname == "未知发送者":
         return None
-    # 微信文件传输助手是调试利器，默认直通绑定 Freddy
-    if wechat_nickname == "文件传输助手":
+    # 微信文件传输助手是调试利器，或者自己发送的消息 (self) 默认直通绑定 Freddy
+    if wechat_nickname == "文件传输助手" or wechat_nickname == "self":
         return FREDDY_SUB_UUID
     try:
         headers = {
@@ -120,8 +120,14 @@ def check_wechat_binding(wechat_nickname: str) -> str | None:
         }
         url = f"{SUPABASE_URL}/rest/v1/profiles"
         params = {"wechat_nickname": f"eq.{wechat_nickname}", "select": "*"}
+        
+        # 🚨 增加极度详细的 Supabase REST 联调联排日志
+        logger.info(f"🔮 [DEBUG REST] 发起安全反查 -> URL: {url}, Key长度: {len(SUPABASE_SERVICE_KEY or '')}, 查询微信昵称: '{wechat_nickname}'")
+        
         with httpx.Client() as client:
             resp = client.get(url, params=params, headers=headers, timeout=10.0)
+            logger.info(f"🔮 [DEBUG REST] 收到响应 -> 状态码: {resp.status_code}, 返回内容: {resp.text}")
+            
             if resp.status_code == 200:
                 data = resp.json()
                 if data and len(data) > 0:
