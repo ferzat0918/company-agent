@@ -31,20 +31,34 @@ PROMPTS_DIR = os.getenv("PROMPTS_DIR", "prompts")
 
 # Suffix appended to subagent prompts explaining the safe python execution sandbox
 _SANDBOX_SUFFIX = (
-    "\n\n【文件与数据处理安全沙盒说明】\n"
-    "1. 你可以通过调用 `execute_python_in_sandbox` 工具，在安全的 Docker Python 沙盒环境中编写和运行 Python 代码来处理、分析、编辑或生成文件。\n"
-    "2. 用户上传的文件已自动保存在 `/workspace/<文件名>`。你在编写 Python 代码时，可以直接在当前目录下读取这些文件（沙盒工作目录为 `/workspace`）。\n"
-    "3. 你在沙盒中生成的任何新文件或修改后的文件，请直接保存在 `/workspace` 当前目录下，它们会同步保存到用户的本地工作区。\n"
-    "4. **重要：当你在沙盒中生成、转换或修改了任何文件后，你必须在回答中提供形如 `[点击下载 文件名](/workspace/文件名)` 的 markdown 格式下载链接（例如：`[点击下载 report.docx](/workspace/report.docx)`），以便用户在聊天界面直接点击下载。绝对不能漏掉该下载链接！**\n"
-    "5. 请注意：你自身**没有**直接在宿主机写入或编辑文件的能力（直接调用 write_file / edit_file 等底层工具会被安全权限拦截），因此所有文件生成、编辑、转换和复杂数据解析都**必须**通过在 `execute_python_in_sandbox` 中编写 Python 代码来完成。"
+    "\n\n【文件与数据处理安全沙盒说明（极重要）】\n"
+    "1. **沙盒环境是完全临时的（Ephemeral）**：每次你调用 `execute_python_in_sandbox`，都会启动一个全新的、干净的沙盒容器，代码运行结束后该容器会被**物理销毁**。任何你通过 `pip install`、`apt-get` 或是下载至系统目录的变化都会**全部丢失**，绝对不会继承到下一次调用中！\n"
+    "2. **严禁在代码中尝试安装包或字体**：请绝对不要在 Python 代码中通过 `subprocess` 执行 `pip install`、`apt-get update/install` 或是下载额外的字体文件，这不仅无效，还会产生数百MB的垃圾传输导致网络极大延误和无限重试循环！\n"
+    "3. **已为您预装常用库和中文字体**：沙盒镜像中已经预装了：`pandas, openpyxl, python-docx, pdfplumber, matplotlib, Pillow, fpdf2, fonttools, reportlab, pypdf, cairosvg, moviepy` 等库。同时**中文字体也已预先安装**在系统路径：`/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`（Noto Sans CJK Regular）以及 `NotoSansCJK-Bold.ttc`（Noto Sans CJK Bold）。\n"
+    "4. **如何添加中文字体 (FPDF2 示例)**：直接加载系统路径，严禁下载字体！\n"
+    "   ```python\n"
+    "   from fpdf import FPDF\n"
+    "   pdf = FPDF()\n"
+    "   pdf.add_font('NotoSans', '', '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc')\n"
+    "   pdf.add_font('NotoSans', 'B', '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc')\n"
+    "   ```\n"
+    "5. **如何添加中文字体 (ReportLab 示例)**：\n"
+    "   ```python\n"
+    "   from reportlab.pdfbase import pdfmetrics\n"
+    "   from reportlab.pdfbase.ttfonts import TTFont\n"
+    "   pdfmetrics.registerFont(TTFont('NotoSansCJK', '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'))\n"
+    "   ```\n"
+    "6. **文件读取与输出**：用户上传的文件在当前工作目录（沙盒工作目录为 `/workspace`），你可以直接读取。生成的新文件也必须保存在当前目录下。\n"
+    "7. **重要：当你在沙盒中生成、转换或修改了任何文件后，你必须在回答中提供形如 `[点击下载 文件名](/workspace/文件名)` 的 markdown 格式下载链接（例如：`[点击下载 report.docx](/workspace/report.docx)`），以便用户在聊天界面直接点击下载。绝对不能漏掉该下载链接！**\n"
+    "8. 请注意：你自身**没有**直接在宿主机写入或编辑文件的能力（直接调用 write_file / edit_file 等底层工具会被安全权限拦截），因此所有文件生成、编辑、转换和复杂数据解析都**必须**通过在 `execute_python_in_sandbox` 中编写 Python 代码来完成。"
 )
 
 # Supervisor prompt suffix
 _SUPERVISOR_SANDBOX_SUFFIX = (
-    "\n\n【文件与数据处理安全沙盒说明】\n"
+    "\n\n【文件与数据处理安全沙盒说明（极重要）】\n"
     "1. 用户的全部文件操作和数据分析均需通过调用 `execute_python_in_sandbox` 工具或分发给各部门 SubAgent 完成。\n"
-    "2. 你可以直接调用 `execute_python_in_sandbox`，也可以通过 task 工具将任务派发给相应的子 Agent（子 Agent 也拥有完整的沙盒执行能力）。\n"
-    "3. 任何需要读取、生成或修改文件的任务，都**必须**在 `execute_python_in_sandbox` 沙盒环境中运行 Python 代码处理（代码工作目录为 `/workspace`）。直接的 write_file / edit_file 依然是被禁止的。\n"
+    "2. 任何需要读取、生成或修改文件的任务，都**必须**在 `execute_python_in_sandbox` 沙盒环境中运行 Python 代码处理（代码工作目录为 `/workspace`）。\n"
+    "3. **沙盒容器是完全临时的（Ephemeral）**，运行完即毁，严禁让子 Agent 或在代码中尝试通过 `pip` / `apt-get` 安装任何东西，也严禁从外部下载字体，所需库与中文字体（Noto Sans CJK，路径：`/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`）已全部为您预装在沙盒镜像中！\n"
     "4. **重要：当在沙盒中生成、转换或修改了任何文件后，你作为 Supervisor 汇总回答时，也必须确保在回答中包含形如 `[点击下载 文件名](/workspace/文件名)` 的 markdown 下载链接，以便用户在聊天界面能直接点击下载。**"
 )
 

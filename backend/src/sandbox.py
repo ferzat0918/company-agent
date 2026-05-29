@@ -258,11 +258,11 @@ sandbox_tool = StructuredTool.from_function(
     func=execute_python_in_sandbox,
     name="execute_python_in_sandbox",
     description=(
-        "在安全的隔离沙盒中运行 Python 代码来处理、分析、编辑或写入文件。 "
-        "使用此工具来读取/写入 Excel、Word、PDF 等文档。工作目录为 `./`。 "
-        "如果用户上传了文件，它们已自动保存在当前工作目录下，你可以直接用代码读取并处理。 "
-        "沙盒已预装：pandas, openpyxl, python-docx, pdfplumber, matplotlib, Pillow, fpdf2, fonttools, reportlab, pypdf, cairosvg, moviepy 等库，无需 pip install。 "
-        "中文字体已预装在系统路径 /usr/share/fonts/opentype/noto/ (Noto Sans CJK)，可直接使用，无需下载。"
+        "在安全的隔离临时（Ephemeral）沙盒中运行 Python 代码来处理、分析、编辑或写入文件。 "
+        "【特别警告】：沙盒容器是临时的，代码运行结束即销毁。严禁在代码中尝试通过 subprocess 调用 pip 或 apt-get 安装额外的库或字体，也绝对禁止从外部（如 GitHub）下载字体！这完全无效且会严重拖慢运行！ "
+        "【预装库】：已预装 pandas, openpyxl, python-docx, pdfplumber, matplotlib, Pillow, fpdf2, fonttools, reportlab, pypdf, cairosvg, moviepy 等库，请直接导入使用。 "
+        "【预装中文字体】：系统已预装 CJK 简体中文字体，路径为 `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc`（Noto Sans CJK Regular）和 `NotoSansCJK-Bold.ttc`（Noto Sans CJK Bold）。 "
+        "如果使用 fpdf2 生成中文 PDF，请直接通过 `pdf.add_font('NotoSans', '', '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc')` 载入系统字体进行注册，无需且禁止从外部下载！"
     ),
     args_schema=SandboxExecutionInput,
 )
