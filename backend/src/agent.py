@@ -291,12 +291,26 @@ def draw_image(prompt: str) -> str:
         except Exception:
             pass
         print(f"[Image Generator] Error during generation: {str(e)}{error_detail}")
-        return f"⚠ 生图过程中发生网络或API交互错误，生成失败: {str(e)}{error_detail}"
+        return f"⚠ 图像生成过程中发生网络或API交互错误，生成失败: {str(e)}{error_detail}"
+
+# ─── System Current Time Tool ────────────────────────────────────
+@tool
+def get_current_time() -> str:
+    """获取当前系统的准确日期、时间和星期几。
+    
+    当用户询问与当前时间、今天、昨天、明天相关的时效性问题，或者需要查询最新新闻时，
+    你必须首先调用此工具以获取准确的“今天”的日期和时间，以便为搜索工具提供正确的日期背景。
+    """
+    import datetime
+    now = datetime.datetime.now()
+    weekday_map = {0: "星期一", 1: "星期二", 2: "星期三", 3: "星期四", 4: "星期五", 5: "星期六", 6: "星期日"}
+    weekday_str = weekday_map.get(now.weekday(), "")
+    return now.strftime(f"当前系统时间为: %Y年%m月%d日 %H时%M分%S秒 ({weekday_str})")
 
 # ─── Web search tool (Tavily) ───────────────────────────────────
 # Inherited by every SubAgent because none of them declare their own
 # `tools` field — see deepagents/graph.py:575 (inherit-from-parent logic).
-_agent_tools: list = [_memory_tool, _memory_undo_tool, sandbox_tool, send_wechat_file, draw_image]
+_agent_tools: list = [_memory_tool, _memory_undo_tool, sandbox_tool, send_wechat_file, draw_image, get_current_time]
 if TAVILY_API_KEY:
     # Imported lazily so the package is only required when the key is set.
     from langchain_tavily import TavilySearch
