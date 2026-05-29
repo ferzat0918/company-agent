@@ -531,52 +531,56 @@ def main():
                         continue
                     
                     # Dedup: skip if sidebar preview hasn't changed since last poll
+                    # (guards against stale isnew flag across consecutive poll cycles)
                     content_str = s.content or ""
                     if last_seen_content.get(s.name) == content_str:
                         continue
                     last_seen_content[s.name] = content_str
                     
-                    # Determine sender and content directly from the session sidebar item
-                    is_group = False
-                    sender = s.name
-                    raw_content = content_str
+                    logger.info(f"💬 收到 [{s.name}] 的未读消息！进行 UI 切换读取中...")
                     
-                    # Heuristic to detect group chats in WeChat sidebar:
-                    if ("：" in content_str or ":" in content_str) and (s.name == "AI先锋小队" or "群" in s.name or "队" in s.name or "组" in s.name or "会" in s.name or "交流" in s.name or "channel" in s.name.lower()):
-                        is_group = True
-                        if "：" in content_str:
-                            parts = content_str.split("：", 1)
-                        else:
-                            parts = content_str.split(":", 1)
-                        sender = parts[0].strip()
-                        raw_content = parts[1].strip()
+                    wx.ChatWith(s.name)
+                    time.sleep(0.4)
                     
-                    if not sender:
-                        sender = s.name
-                        
-                    logger.info(f"🔍 [DEBUG MSG] sidebar parsed -> sender: '{sender}', is_group: {is_group}, content: '{raw_content}'")
+                    # Read ALL messages from the chat window (not just sidebar preview)
+                    # This catches rapid-fire messages that the sidebar would have overwritten
+                    msgs = wx.GetAllMessage()
+                    if not msgs:
+                        continue
                     
-                    # Extract and validate unread messages
+                    # Scan backwards from newest: collect messages until we hit our own last reply
+                    # This reliably extracts only the unread portion
+                    unread_msgs = []
+                    for m in reversed(msgs):
+                        if m.attr == "self" and s.name != "文件传输助手":
+                            break
+                        if m.attr == "system" or m.type == "time":
+                            continue
+                        unread_msgs.insert(0, m)
+                    
+                    # Filter and validate: group chats must @ us, clean up mention text
+                    valid_msgs = []
                     bot_name = os.environ.get("BOT_WECHAT_NICKNAME") or (wx.nickname if (wx and hasattr(wx, "nickname")) else None) or "扎特 Freddy"
                     mention_1 = f"@{bot_name}"
                     mention_2 = f"@{bot_name.split()[-1]}" if bot_name and len(bot_name.split()) > 1 else mention_1
-                    
-                    if is_group:
-                        if mention_1 not in raw_content and mention_2 not in raw_content:
-                            continue
-                        logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{sender}] 的 @ 提问！")
-                        raw_content = raw_content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
 
-                    valid_msgs = [(sender, raw_content)]
+                    for m in unread_msgs:
+                        if m.attr == "self" and s.name != "文件传输助手":
+                            continue
+                        
+                        is_group_msg = (m.sender != s.name and s.name != "文件传输助手")
+                        content = m.content
+                        
+                        if is_group_msg:
+                            if mention_1 not in content and mention_2 not in content:
+                                continue
+                            logger.info(f"🔔 [群聊@提醒] 在群聊 [{s.name}] 中收到来自 [{m.sender}] 的 @ 提问！")
+                            content = content.replace(mention_1, "").replace(mention_2, "").replace("\u2005", "").strip()
+
+                        valid_msgs.append((m.sender, content))
                     
-                    logger.info(f"💬 收到 [{s.name}] 的未读消息！进行 UI 切换读取中...")
-                    
-                    # 🚨 GUI 联排探测器 A
-                    logger.info(f"💬 [RPA GUI] 开始执行 ChatWith('{s.name}')...")
-                    wx.ChatWith(s.name)
-                    logger.info(f"💬 [RPA GUI] ChatWith('{s.name}') 切换联系人成功并清除未读红点！")
-                    
-                    time.sleep(0.4)
+                    if not valid_msgs:
+                        continue
                     
                     # Add to chat room sequential queue
                     with queues_lock:
