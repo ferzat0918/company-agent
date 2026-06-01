@@ -123,3 +123,112 @@ def schedule_agent_task(
         )
     except Exception as e:
         return f"错误：数据库写入失败 - {str(e)}"
+
+@tool
+def delete_scheduled_task(task_id: str, config: RunnableConfig = None) -> str:
+    """取消并彻底删除一个定时任务。
+    
+    当用户想要停止或取消某项计划中、挂起中 (pending) 或正在运行 (running) 的定时任务时，请调用此工具。
+    
+    Args:
+        task_id: 任务的唯一 ID (UUID 格式)。您可以先调用 list_scheduled_tasks 获取任务 ID 列表。
+    """
+    if not task_id:
+        return "错误：任务 ID 不能为空。"
+        
+    user_id = None
+    if config and isinstance(config, dict):
+        configurable = config.get("configurable", {})
+        metadata = config.get("metadata", {})
+        user_id = (
+            configurable.get("owner") or 
+            metadata.get("owner") or 
+            configurable.get("user_id") or 
+            metadata.get("user_id")
+        )
+        
+    try:
+        with psycopg.connect(POSTGRES_URI) as conn:
+            with conn.cursor() as cur:
+                if user_id:
+                    cur.execute(
+                        "DELETE FROM public.scheduled_agent_tasks WHERE id = %s AND user_id = %s RETURNING id",
+                        (task_id, user_id)
+                    )
+                else:
+                    cur.execute(
+                        "DELETE FROM public.scheduled_agent_tasks WHERE id = %s RETURNING id",
+                        (task_id,)
+                    )
+                row = cur.fetchone()
+                conn.commit()
+                
+                if row:
+                    return f"✓ 成功取消并删除了定时任务！\n- 任务 ID: {task_id}"
+                else:
+                    return f"错误：未找到任务 ID 为 {task_id} 的定时任务，或者您没有权限删除它。"
+    except Exception as e:
+        return f"错误：删除定时任务失败 - {str(e)}"
+
+@tool
+def list_scheduled_tasks(config: RunnableConfig = None) -> str:
+    """列出所有当前正在挂起 (pending) 或正在执行 (running) 的定时任务，包括它们的时间、描述与任务 ID。
+    
+    当用户想要查看、修改或取消某些定时任务时，请先调用此工具获取任务详情和任务 ID 列表。
+    """
+    user_id = None
+    if config and isinstance(config, dict):
+        configurable = config.get("configurable", {})
+        metadata = config.get("metadata", {})
+        user_id = (
+            configurable.get("owner") or 
+            metadata.get("owner") or 
+            configurable.get("user_id") or 
+            metadata.get("user_id")
+        )
+        
+    try:
+        with psycopg.connect(POSTGRES_URI) as conn:
+            with conn.cursor() as cur:
+                if user_id:
+                    cur.execute(
+                        """
+                        SELECT id, task_description, trigger_spec, task_type, status, next_run_at 
+                        FROM public.scheduled_agent_tasks 
+                        WHERE user_id = %s AND status IN ('pending', 'running')
+                        ORDER BY next_run_at ASC
+                        """,
+                        (user_id,)
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT id, task_description, trigger_spec, task_type, status, next_run_at 
+                        FROM public.scheduled_agent_tasks 
+                        WHERE status IN ('pending', 'running')
+                        ORDER BY next_run_at ASC
+                        """
+                    )
+                rows = cur.fetchall()
+                
+                if not rows:
+                    return "📋 当前没有任何处于挂起或正在运行状态的定时任务。"
+                    
+                result_lines = ["📋 当前活动的定时任务列表："]
+                tz_beijing = datetime.timezone(datetime.timedelta(hours=8))
+                
+                for i, r in enumerate(rows, 1):
+                    t_id, desc, spec, t_type, status, next_run = r
+                    local_time = next_run.astimezone(tz_beijing).strftime("%Y-%m-%d %H:%M:%S") if next_run else "未知"
+                    
+                    result_lines.append(
+                        f"{i}. 【{t_type.upper()}】\n"
+                        f"   - 任务 ID: {t_id}\n"
+                        f"   - 触发规则: {spec}\n"
+                        f"   - 下次唤醒时间: {local_time} (北京时间)\n"
+                        f"   - 当前状态: {status}\n"
+                        f"   - 任务说明: {desc[:60]}..."
+                    )
+                return "\n\n".join(result_lines)
+    except Exception as e:
+        return f"错误：获取任务列表失败 - {str(e)}"

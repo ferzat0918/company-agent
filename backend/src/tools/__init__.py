@@ -9,7 +9,7 @@ from src.tools.image import draw_image
 from src.tools.time import get_current_time
 from src.tools.webpage import fetch_webpage
 from src.tools.search import get_tavily_tool
-from src.tools.schedule import schedule_agent_task
+from src.tools.schedule import schedule_agent_task, delete_scheduled_task, list_scheduled_tasks
 
 __all__ = [
     "send_wechat_file",
@@ -19,5 +19,7 @@ __all__ = [
     "fetch_webpage",
     "get_tavily_tool",
     "schedule_agent_task",
+    "delete_scheduled_task",
+    "list_scheduled_tasks",
 ]
 

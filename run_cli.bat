@@ -51,6 +51,17 @@ echo.
 :CHECK_DEPS
 if not exist "%~dp0.python_env\python.exe" goto SYSTEM_FALLBACK
 
+:: Check if pip itself is missing in the existing portable environment, if so auto-restore it!
+"%~dp0.python_env\python.exe" -m pip --version >nul 2>nul
+if errorlevel 1 (
+    echo [WARN] Portable Python exists but 'pip' is missing! Auto-restoring pip...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%~dp0.python_env\get-pip.py'"
+    if exist "%~dp0.python_env\get-pip.py" (
+        "%~dp0.python_env\python.exe" "%~dp0.python_env\get-pip.py" --index-url https://pypi.tuna.tsinghua.edu.cn/simple --no-warn-script-location
+        del "%~dp0.python_env\get-pip.py" >nul 2>nul
+    )
+)
+
 :: Check portable python deps
 "%~dp0.python_env\python.exe" -c "import wxauto4, jwt, httpx, dotenv, apscheduler, psycopg" >nul 2>nul
 if errorlevel 1 goto INSTALL_PORTABLE_DEPS

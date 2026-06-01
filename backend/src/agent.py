@@ -33,6 +33,8 @@ from src.tools import (
     fetch_webpage,
     get_tavily_tool,
     schedule_agent_task,
+    delete_scheduled_task,
+    list_scheduled_tasks,
 )
 
 # ─── Prompt loader ──────────────────────────────────────────────
@@ -197,6 +199,8 @@ _agent_tools: list = [
     get_current_time,
     fetch_webpage,
     schedule_agent_task,
+    delete_scheduled_task,
+    list_scheduled_tasks,
 ]
 
 _tavily_tool = get_tavily_tool()
