@@ -86,59 +86,62 @@ async def test_verify_expired_token():
 
 
 @pytest.mark.asyncio
-async def test_on_thread_create_wechat_mapped():
-    from backend.src.auth import on_thread_create, FREDDY_SUB_UUID
+async def test_on_thread_create():
+    from backend.src.auth import on_thread_create
     
+    # 1. WeChat case: metadata already has channel
     ctx = MagicMock()
-    ctx.user.identity = FREDDY_SUB_UUID
+    ctx.user.identity = "test-owner-id"
     
-    value = {
+    value_wechat = {
         "metadata": {
             "channel": "wechat",
-            "chat_name": "阿三"
+            "chat_name": "阿三",
+            "sender": "张三"
         }
     }
     
-    mock_profile = {"user_id": "real-uuid-of-asan"}
-    with patch("backend.src.auth._get_profile_by_wechat_nickname", new_callable=AsyncMock) as mock_lookup:
-        mock_lookup.return_value = mock_profile
-        res = await on_thread_create(ctx, value)
-        assert res["metadata"]["owner"] == "real-uuid-of-asan"
+    res_wechat = await on_thread_create(ctx, value_wechat)
+    assert res_wechat["metadata"]["owner"] == "test-owner-id"
+    assert res_wechat["metadata"]["channel"] == "wechat"
+    assert res_wechat["metadata"]["chat_name"] == "阿三"
+    assert res_wechat["metadata"]["sender"] == "张三"
+
+    # 2. Web case: metadata is empty/missing channel
+    value_web = {}
+    res_web = await on_thread_create(ctx, value_web)
+    assert res_web["metadata"]["owner"] == "test-owner-id"
+    assert res_web["metadata"]["channel"] == "web"
+    assert res_web["metadata"]["chat_name"] == "Web网页端"
+    assert res_web["metadata"]["sender"] == "Web用户"
 
 
 @pytest.mark.asyncio
-async def test_on_thread_create_wechat_unmapped():
-    from backend.src.auth import on_thread_create, FREDDY_SUB_UUID
+async def test_on_thread_read_and_mutation_auth():
+    from backend.src.auth import (
+        on_thread_read,
+        on_thread_update,
+        on_thread_delete,
+        on_thread_search,
+    )
     
     ctx = MagicMock()
-    ctx.user.identity = FREDDY_SUB_UUID
+    ctx.user.identity = "user-123"
     
-    value = {
-        "metadata": {
-            "channel": "wechat",
-            "chat_name": "李四"
-        }
-    }
+    # Read
+    res_read = await on_thread_read(ctx, {})
+    assert res_read == {"owner": "user-123"}
     
-    with patch("backend.src.auth._get_profile_by_wechat_nickname", new_callable=AsyncMock) as mock_lookup:
-        mock_lookup.return_value = None
-        res = await on_thread_create(ctx, value)
-        assert res["metadata"]["owner"] == FREDDY_SUB_UUID
+    # Update
+    res_update = await on_thread_update(ctx, {})
+    assert res_update == {"owner": "user-123"}
+    
+    # Delete
+    res_delete = await on_thread_delete(ctx, {})
+    assert res_delete == {"owner": "user-123"}
+    
+    # Search
+    res_search = await on_thread_search(ctx, {})
+    assert res_search == {"owner": "user-123"}
 
-
-@pytest.mark.asyncio
-async def test_on_thread_read_superuser_and_normal():
-    from backend.src.auth import on_thread_read, FREDDY_SUB_UUID
-    
-    # Normal user
-    ctx_normal = MagicMock()
-    ctx_normal.user.identity = "user-123"
-    res_normal = await on_thread_read(ctx_normal, {})
-    assert res_normal == {"owner": "user-123"}
-    
-    # Superuser bot
-    ctx_super = MagicMock()
-    ctx_super.user.identity = FREDDY_SUB_UUID
-    res_super = await on_thread_read(ctx_super, {})
-    assert res_super == {}
 

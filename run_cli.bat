@@ -9,7 +9,7 @@ echo ============================================================
 echo.
 
 :: 1. Fast-path: Check if system global python is already configured with all deps
-python -c "import wxauto4, jwt, httpx, dotenv" >nul 2>nul
+python -c "import wxauto4, jwt, httpx, dotenv, apscheduler, psycopg" >nul 2>nul
 if %errorlevel% equ 0 goto RUN_GLOBAL
 
 :: 2. Check if portable python exists, if so jump to dependency check
@@ -52,19 +52,19 @@ echo.
 if not exist "%~dp0.python_env\python.exe" goto SYSTEM_FALLBACK
 
 :: Check portable python deps
-"%~dp0.python_env\python.exe" -c "import wxauto4, jwt, httpx, dotenv" >nul 2>nul
+"%~dp0.python_env\python.exe" -c "import wxauto4, jwt, httpx, dotenv, apscheduler, psycopg" >nul 2>nul
 if errorlevel 1 goto INSTALL_PORTABLE_DEPS
 goto RUN_PORTABLE
 
 :INSTALL_PORTABLE_DEPS
 echo [UMX] Auto-installing required packages, please wait...
-"%~dp0.python_env\python.exe" -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple wxauto4 pyjwt httpx python-dotenv --no-warn-script-location
+"%~dp0.python_env\python.exe" -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple wxauto4 pyjwt httpx python-dotenv apscheduler "psycopg[binary]" --no-warn-script-location
 if errorlevel 1 goto INSTALL_PORTABLE_DEPS_BACKUP
 goto RUN_PORTABLE
 
 :INSTALL_PORTABLE_DEPS_BACKUP
 echo [UMX] Fallback installation from official source...
-"%~dp0.python_env\python.exe" -m pip install wxauto4 pyjwt httpx python-dotenv --no-warn-script-location
+"%~dp0.python_env\python.exe" -m pip install wxauto4 pyjwt httpx python-dotenv apscheduler "psycopg[binary]" --no-warn-script-location
 if errorlevel 1 goto DEPS_FAIL_ERROR
 
 :RUN_PORTABLE
@@ -77,13 +77,13 @@ python --version >nul 2>nul
 if errorlevel 1 goto NO_PY_ERROR
 
 :: Check global deps
-python -c "import wxauto4, jwt, httpx, dotenv" >nul 2>nul
+python -c "import wxauto4, jwt, httpx, dotenv, apscheduler, psycopg" >nul 2>nul
 if errorlevel 1 goto INSTALL_GLOBAL_DEPS
 goto RUN_GLOBAL
 
 :INSTALL_GLOBAL_DEPS
 echo [UMX] Installing dependencies via global pip...
-python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple wxauto4 pyjwt httpx python-dotenv
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple wxauto4 pyjwt httpx python-dotenv apscheduler "psycopg[binary]"
 if errorlevel 1 goto DEPS_FAIL_ERROR
 
 :RUN_GLOBAL

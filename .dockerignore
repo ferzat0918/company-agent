@@ -1,0 +1,13 @@
+backend/.venv/
+backend/.pytest_cache/
+frontend/agent-chat-ui/.next/
+frontend/agent-chat-ui/out/
+frontend/agent-chat-ui/node_modules/
+skills/**/node_modules/
+.git/
+.python_env/
+.node_env/
+logs/
+wxauto_logs/
+*.log
+*.pid

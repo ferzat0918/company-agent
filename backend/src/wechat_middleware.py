@@ -55,4 +55,25 @@ class WeChatChannelMiddleware(AgentMiddleware):
                 
                 request.system_message = SystemMessage(content=new_content)
                 
+        elif channel == "web":
+            # Dynamically inject Web channel constraints and styling guide
+            web_instruction = (
+                f"\n\n【渠道上下文控制：Web网页端 (Channel: Web)】\n"
+                f"1. 当前会话发生在 UMX Web 平台（网页端浏览器聊天界面，当前窗口: {chat_name}，当前登录人: {sender}）。\n"
+                f"2. 【网页端专属风格与交互激活】当前消息来自 Web 网页端渠道！请遵循系统设定的小U角色，作为专业硬核却又极其接地气、幽默风趣的“极客老友”。\n"
+                f"3. 由于网页端具备完整的富文本和 Markdown 渲染支持，你可以自由、美观地排版，但仍需保持温暖自然的死党交流风格，且绝对禁止任何表情符号（Emoji）。\n"
+                f"4. **文件下载指南**：任何在沙盒中生成、转换或修改的文件，你必须在回复中包含形如 `[点击下载 文件名](/workspace/文件名)` 的 markdown 下载链接，以便用户在网页端聊天界面直接点击下载。\n"
+            )
+            
+            if request.system_message is not None:
+                content = request.system_message.content
+                
+                if isinstance(content, list):
+                    new_content = list(content)
+                    new_content.append({"type": "text", "text": web_instruction})
+                else:
+                    new_content = str(content) + web_instruction
+                
+                request.system_message = SystemMessage(content=new_content)
+                
         return await handler(request)

@@ -25,6 +25,15 @@ from .wechat_middleware import WeChatChannelMiddleware
 from .memory.tool import make_memory_tool, make_memory_undo_tool
 from .skills_loader import get_skills_config, validate_skills
 from .sandbox import sandbox_tool
+from src.tools import (
+    send_wechat_file,
+    send_wechat_message,
+    draw_image,
+    get_current_time,
+    fetch_webpage,
+    get_tavily_tool,
+    schedule_agent_task,
+)
 
 # ─── Prompt loader ──────────────────────────────────────────────
 PROMPTS_DIR = os.getenv("PROMPTS_DIR", "prompts")
@@ -74,7 +83,7 @@ def _load_prompt(relative_path: str, fallback: str = "") -> str:
         print(f"WARNING: prompt file not found: {full_path} — using fallback")
         return fallback
     text = full_path.read_text(encoding="utf-8").strip()
-    print(f"  ✓ Loaded prompt: {full_path} ({len(text)} chars)")
+    print(f"  [OK] Loaded prompt: {full_path} ({len(text)} chars)")
     return text
 
 
@@ -177,270 +186,25 @@ _memory_undo_tool = make_memory_undo_tool(
     get_user_id=lambda: _memory_middleware._last_user_id,
 )
 
-# ─── WeChat File Sending Tool ────────────────────────────────────
-from langchain_core.tools import tool
+# ─── Modular Tools Loading ──────────────────────────────────────
+_agent_tools: list = [
+    _memory_tool,
+    _memory_undo_tool,
+    sandbox_tool,
+    send_wechat_file,
+    send_wechat_message,
+    draw_image,
+    get_current_time,
+    fetch_webpage,
+    schedule_agent_task,
+]
 
-@tool
-def send_wechat_file(filepath: str) -> str:
-    """发送本地沙盒生成的文件、图片或矢量图到微信当前的聊天窗口中。
-    
-    当你（或后台子智能体）在沙盒中生成了任何文件（如报告、Excel、LOGO 矢量图等），且用户当前是在微信渠道时，
-    你【必须】调用此工具来直接发送该实体文件给用户。
-    
-    Args:
-        filepath: 文件在沙盒中的绝对路径，必须以 '/workspace/' 开头。
-                  例如: '/workspace/umx-logo/logo-full.svg' 或 '/workspace/weekly_report.xlsx'。
-    """
-    if not filepath.startswith("/workspace/"):
-        return f"错误：文件路径必须以 '/workspace/' 开头，当前为: {filepath}"
-    return f"[WECHAT_FILE_PUSH]: {filepath}"
-
-# ─── Du's API Image Generation Tool ──────────────────────────────
-import uuid
-import requests
-from langchain_core.runnables.config import var_child_runnable_config
-
-@tool
-def draw_image(prompt: str) -> str:
-    """当你（或者子部门 Agent）需要根据文字描述生成、画制或创作任何图片、插画、Logo、海报等视觉内容时调用此工具。
-    
-    该工具会将你的描述发送至 GPT 顶尖图像生成模型（DALL-E 3）完成创作，并自动将成品图保存至当前会话的物理工作区。
-    
-    Args:
-        prompt: 对图片内容极其细致且富有艺术色彩的详细中文描述。
-    """
-    if not GPT_API_KEY:
-        return "错误：未配置生图 API 秘钥 (GPT_API_KEY)，请联系系统管理员在 .env 中配置。"
-        
-    try:
-        config = var_child_runnable_config.get()
-        thread_id = "default"
-        if config and isinstance(config, dict):
-            thread_id = config.get("configurable", {}).get("thread_id", "default")
-    except Exception:
-        thread_id = "default"
-        
-    print(f"[Image Generator] Received draw task for thread [{thread_id}]. Prompt: {prompt}")
-
-    headers = {
-        "Authorization": f"Bearer {GPT_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "gpt-image-2",
-        "prompt": prompt,
-        "n": 1,
-        "size": "1024x1024"
-    }
-
-    try:
-        url = f"{GPT_BASE_URL.rstrip('/')}/images/generations"
-        response = requests.post(url, json=payload, headers=headers, timeout=180)
-        response.raise_for_status()
-        
-        res_data = response.json()
-        data_list = res_data.get("data", [])
-        if not data_list:
-            raise KeyError(f"返回数据中的 'data' 字段为空: {res_data}")
-            
-        first_item = data_list[0]
-        image_url = None
-        is_base64 = False
-        
-        if isinstance(first_item, str):
-            image_url = first_item
-        elif isinstance(first_item, dict):
-            for key in ["url", "URL", "uri", "URI", "link", "b64_json"]:
-                if key in first_item:
-                    image_url = first_item[key]
-                    if key == "b64_json":
-                        is_base64 = True
-                    break
-            
-            if not image_url:
-                for val in first_item.values():
-                    if isinstance(val, str) and val.startswith(("http://", "https://")):
-                        image_url = val
-                        break
-                        
-        if not image_url:
-            raise KeyError(f"无法从返回数据中识别出有效的图片资源！返回的第一项为: {first_item}")
-
-        img_data = None
-        if is_base64 or (isinstance(image_url, str) and not image_url.startswith(("http://", "https://"))):
-            import base64
-            base64_str = str(image_url)
-            if "," in base64_str:
-                base64_str = base64_str.split(",", 1)[1]
-            img_data = base64.b64decode(base64_str)
-        else:
-            img_response = requests.get(image_url, timeout=90)
-            img_response.raise_for_status()
-            img_data = img_response.content
-        
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        workspace_dir = os.path.join(project_root, "workspace", thread_id)
-        os.makedirs(workspace_dir, exist_ok=True)
-        
-        filename = f"art_{uuid.uuid4().hex[:8]}.png"
-        dest_filepath = os.path.join(workspace_dir, filename)
-        
-        with open(dest_filepath, "wb") as f:
-            f.write(img_data)
-            
-        print(f"[Image Generator] Successfully downloaded and saved image to: {dest_filepath}")
-        
-        return (
-            f"✓ 图像已成功生成！文件已安全同步至您的工作区。\n\n"
-            f"![{filename}](/workspace/{thread_id}/{filename})"
-        )
-        
-    except Exception as e:
-        error_detail = ""
-        try:
-            # 尝试获取并读取请求返回体
-            if 'response' in locals() and response is not None and hasattr(response, 'text'):
-                error_detail = f"\n中转站详细返回: {response.text}"
-        except Exception:
-            pass
-        print(f"[Image Generator] Error during generation: {str(e)}{error_detail}")
-        return f"⚠ 图像生成过程中发生网络或API交互错误，生成失败: {str(e)}{error_detail}"
-
-# ─── System Current Time Tool ────────────────────────────────────
-@tool
-def get_current_time() -> str:
-    """获取当前系统的准确本地日期 and 时间（北京时间 CST, UTC+8）。
-    
-    当用户询问与当前时间、今天、昨天、明天相关的时效性问题，或者需要查询最新新闻时，
-    你必须首先调用此工具以获取准确的本地日期和时间，以便为搜索工具提供正确的日期背景。
-    """
-    import datetime
-    # 强制使用北京时间 (UTC+8)，解决 Docker 容器内部默认 UTC 时间与宿主机存在 8 小时时差的问题
-    tz_beijing = datetime.timezone(datetime.timedelta(hours=8))
-    now = datetime.datetime.now(tz_beijing)
-    weekday_map = {0: "星期一", 1: "星期二", 2: "星期三", 3: "星期四", 4: "星期五", 5: "星期六", 6: "星期日"}
-    weekday_str = weekday_map.get(now.weekday(), "")
-    return now.strftime(f"当前系统时间为: %Y-%m-%d %H:%M:%S ({weekday_str})")
-
-# ─── Web Page Scraper Tool ──────────────────────────────────────
-from html.parser import HTMLParser
-
-class GenericWebpageParser(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.in_body = False
-        self.in_js_content = False
-        self.js_content_div_count = 0
-        self.ignored_depth = 0
-        self.js_content_parts = []
-        self.body_parts = []
-
-    def handle_starttag(self, tag, attrs):
-        attrs_dict = dict(attrs)
-        
-        if tag == "body":
-            self.in_body = True
-            
-        if tag in ("script", "style"):
-            self.ignored_depth += 1
-            return
-            
-        if tag == "div" and attrs_dict.get("id") == "js_content":
-            self.in_js_content = True
-            self.js_content_div_count = 1
-            return
-            
-        if self.in_js_content:
-            if tag == "div":
-                self.js_content_div_count += 1
-            elif tag in ("p", "br", "h1", "h2", "h3", "h4", "h5", "h6", "li"):
-                self.js_content_parts.append("\n")
-                
-        if self.in_body and not self.in_js_content:
-            if tag in ("p", "br", "h1", "h2", "h3", "h4", "h5", "h6", "li", "div"):
-                self.body_parts.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag == "body":
-            self.in_body = False
-            
-        if tag in ("script", "style"):
-            self.ignored_depth = max(0, self.ignored_depth - 1)
-            return
-            
-        if self.in_js_content:
-            if tag == "div":
-                self.js_content_div_count -= 1
-                if self.js_content_div_count == 0:
-                    self.in_js_content = False
-
-    def handle_data(self, data):
-        if self.ignored_depth > 0:
-            return
-            
-        text = data.strip()
-        if not text:
-            return
-            
-        if self.in_js_content:
-            self.js_content_parts.append(text + " ")
-        elif self.in_body:
-            self.body_parts.append(text + " ")
-
-    def get_text(self) -> str:
-        if self.js_content_parts:
-            full_text = "".join(self.js_content_parts)
-        else:
-            full_text = "".join(self.body_parts)
-            
-        lines = [line.strip() for line in full_text.split("\n")]
-        return "\n".join([line for line in lines if line])
-
-
-@tool
-def fetch_webpage(url: str) -> str:
-    """直接爬取、解析并提取任意公开网页或微信公众号文章的正文文本内容。
-    
-    当用户在聊天中发来任何网页链接（如 mp.weixin.qq.com 微信公众号链接或其他新闻、博客、文章链接），
-    且你需要阅读、分析、概括该网页的核心内容时，必须调用此工具以获取该网页的完整纯文本。
-    
-    Args:
-        url: 需要获取正文的网页绝对 URL 链接（如 'https://mp.weixin.qq.com/s/xxxxxx'）。
-    """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=15.0)
-        if response.status_code != 200:
-            return f"获取网页失败，HTTP 状态码: {response.status_code}"
-            
-        parser = GenericWebpageParser()
-        html_content = response.content.decode(response.encoding or 'utf-8', errors='ignore')
-        parser.feed(html_content)
-        parsed_text = parser.get_text()
-        
-        if not parsed_text:
-            return "网页请求成功，但未能解析出有效的正文文本。"
-            
-        return parsed_text
-        
-    except Exception as e:
-        return f"抓取网页发生异常: {str(e)}"
-
-# ─── Web search tool (Tavily) ───────────────────────────────────
-# Inherited by every SubAgent because none of them declare their own
-# `tools` field — see deepagents/graph.py:575 (inherit-from-parent logic).
-_agent_tools: list = [_memory_tool, _memory_undo_tool, sandbox_tool, send_wechat_file, draw_image, get_current_time, fetch_webpage]
-if TAVILY_API_KEY:
-    # Imported lazily so the package is only required when the key is set.
-    from langchain_tavily import TavilySearch
-    os.environ.setdefault("TAVILY_API_KEY", TAVILY_API_KEY)
-    _agent_tools.append(TavilySearch(max_results=5, topic="general"))
-    print("  ✓ Tavily web search enabled")
+_tavily_tool = get_tavily_tool()
+if _tavily_tool:
+    _agent_tools.append(_tavily_tool)
+    print("  [OK] Tavily web search enabled")
 else:
-    print("  ⚠ TAVILY_API_KEY not set — web search disabled")
+    print("  [Warning] TAVILY_API_KEY not set — web search disabled")
 
 # ─── Load prompts from disk ─────────────────────────────────────
 print(f"Loading prompts from: {PROMPTS_DIR}/")
@@ -526,3 +290,13 @@ agent = create_deep_agent(
     permissions=AGENT_FS_PERMISSIONS,
     middleware=[_memory_middleware, WeChatChannelMiddleware()],
 )
+
+# ─── Start Background Task Scheduler ─────────────────────────────
+try:
+    from src.scheduler import scheduler
+    if not scheduler.running:
+        scheduler.start()
+        print("  [OK] Background Task Scheduler daemon successfully started!")
+except Exception as e:
+    print(f"  [Warning] Failed to start Background Task Scheduler: {e}")
+

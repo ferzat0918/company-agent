@@ -108,7 +108,7 @@ async def verify_supabase_jwt(authorization: str | None) -> dict:
 
 @auth.on.threads.create
 async def on_thread_create(ctx, value):
-    """Stamp every new thread with the owner's identity.
+    """Stamp every new thread with the owner's identity and determine/update channel state.
     
     The JWT already carries the real user_id (set by RPA for wechat, or by
     Supabase auth for web), so ctx.user.identity is always the correct owner.
@@ -116,6 +116,15 @@ async def on_thread_create(ctx, value):
     """
     metadata = value.setdefault("metadata", {})
     metadata["owner"] = ctx.user.identity
+    
+    # Determine the communication channel at the very beginning of the session
+    if "channel" not in metadata:
+        metadata["channel"] = "web"
+    if "chat_name" not in metadata:
+        metadata["chat_name"] = "Web网页端"
+    if "sender" not in metadata:
+        metadata["sender"] = "Web用户"
+        
     return value
 
 

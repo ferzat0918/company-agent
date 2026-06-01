@@ -8,6 +8,8 @@ import jwt
 import threading
 import logging
 import signal
+import datetime
+import psycopg
 import atexit
 from logging.handlers import RotatingFileHandler
 from queue import Queue
@@ -456,6 +458,55 @@ def self_healing_reconnect():
         logger.info("⏳ 绑定失败，将在 5 秒后继续重试...")
         time.sleep(5)
 
+def background_db_push_poller():
+    """后台轮询 public.wechat_push_queue，将挂起的任务推入 reply_queue"""
+    logger.info("📡 [RPA 定时推信服务] 后台推信队列监听器已就绪，开始轮询...")
+    
+    postgres_uri = os.environ.get("POSTGRES_URI")
+    if not postgres_uri:
+        logger.warning("🚨 [RPA 定时推信] 未检测到 POSTGRES_URI 环境变量，定时微信推送功能已关闭。")
+        return
+        
+    while True:
+        try:
+            import psycopg
+            import datetime
+            task = None
+            with psycopg.connect(postgres_uri) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, chat_name, content, attachments
+                        FROM public.wechat_push_queue
+                        WHERE status = 'pending'
+                        ORDER BY created_at ASC
+                        LIMIT 1
+                        FOR UPDATE SKIP LOCKED;
+                        """
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        task = {
+                            "id": row[0],
+                            "chat_name": row[1],
+                            "content": row[2],
+                            "attachments": row[3] if isinstance(row[3], list) else json.loads(row[3] or "[]")
+                        }
+                        cur.execute(
+                            "UPDATE public.wechat_push_queue SET status = 'processing' WHERE id = %s",
+                            (task["id"],)
+                        )
+                        conn.commit()
+            
+            if task:
+                logger.info(f"🎯 [定时推信拦截] 捞取到后台自动任务消息！ID: {task['id']} -> 发送给 [{task['chat_name']}]")
+                reply_queue.put((task["chat_name"], task["content"], task["attachments"], f"db_task_{task['id']}"))
+                
+        except Exception as e:
+            logger.error(f"🚨 [RPA 定时推信] 轮询推送数据库发生异常: {e}")
+            
+        time.sleep(5.0)
+
 def main():
     global listen_chats
     
@@ -515,12 +566,21 @@ def main():
 
     logger.info("⚡ 微信 RPA 生产级服务已正式启动，按 Ctrl+C 可安全退出。")
     
+    # 启动后台数据库定时推信轮询守护线程
+    t_poller = threading.Thread(target=background_db_push_poller, name="DBPushPoller", daemon=True)
+    t_poller.start()
+    
     while True:
         # === 1. UI Thread Consumer: Consume ready AI replies from the queue ===
         try:
             while not reply_queue.empty():
                 chat_name, reply, target_files, thread_id = reply_queue.get_nowait()
-                logger.info(f"📤 [UI 发送队列] 正在回复给 [{chat_name}]...")
+                
+                # 检测是否为后台数据库待发送任务消息
+                is_db_task = isinstance(thread_id, str) and thread_id.startswith("db_task_")
+                db_task_id = thread_id.split("_", 2)[2] if is_db_task else None
+                
+                logger.info(f"📤 [UI 发送队列] 正在回复给 [{chat_name}] (类型: {'定时推信' if is_db_task else '实时对话'})...")
                 
                 # Active UI interaction to switch and send msg
                 wx.ChatWith(chat_name)
@@ -532,35 +592,41 @@ def main():
                 
                 # If we intercepted explicit file sending tool calls
                 if target_files:
-                    logger.info(f"📂 [RPA 工具雷达] 拦截到大模型显式发送文件请求，共 {len(target_files)} 个...")
+                    logger.info(f"📂 [RPA 工具雷达] 拦截到大模型发送文件请求，共 {len(target_files)} 个...")
                     
                     # Updated: Resolve workspace relative to project root
                     script_dir = os.path.dirname(os.path.abspath(__file__))
                     workspace_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "workspace"))
                     
                     for filepath in target_files:
-                        # Clean prefix, keep the subfolder structure (e.g. umx-logo/logo-full.svg)
+                        # Clean prefix, keep the subfolder structure
                         rel_path = filepath.replace("/workspace/", "", 1)
                         
-                        # Generate 4 robust lookup paths to prevent any subdirectory or thread-isolation mismatch
+                        # Generate 4 robust lookup paths
                         lookups = [
-                            # A: Thread-isolated exact path (e.g. workspace/<thread_id>/umx-logo/logo-full.svg)
-                            os.path.join(workspace_dir, thread_id, rel_path),
-                            # B: Thread-isolated basename fallback (e.g. workspace/<thread_id>/logo-full.svg)
-                            os.path.join(workspace_dir, thread_id, os.path.basename(rel_path)),
-                            # C: Root workspace exact path (e.g. workspace/umx-logo/logo-full.svg)
+                            # A: Thread-isolated exact path (only if not a DB task since DB tasks don't have standard thread folder scopes here)
+                            os.path.join(workspace_dir, thread_id if not is_db_task else "", rel_path),
+                            # B: Thread-isolated basename fallback
+                            os.path.join(workspace_dir, thread_id if not is_db_task else "", os.path.basename(rel_path)),
+                            # C: Root workspace exact path
                             os.path.join(workspace_dir, rel_path),
-                            # D: Root workspace basename fallback (e.g. workspace/logo-full.svg)
+                            # D: Root workspace basename fallback
                             os.path.join(workspace_dir, os.path.basename(rel_path))
                         ]
                         
                         local_filepath = None
                         for path in lookups:
-                            # Normalize path slashes for Windows compatibility
                             path = os.path.normpath(path)
                             if os.path.exists(path):
                                 local_filepath = path
                                 break
+                        
+                        if not local_filepath:
+                            logger.info(f"   🔍 尝试在 workspace/ 目录下递归搜索文件: {os.path.basename(rel_path)}")
+                            for root, dirs, files in os.walk(workspace_dir):
+                                if os.path.basename(rel_path) in files:
+                                    local_filepath = os.path.join(root, os.path.basename(rel_path))
+                                    break
                         
                         if local_filepath:
                             logger.info(f"   - 正在提取并传输文件: {local_filepath}")
@@ -568,23 +634,54 @@ def main():
                             wx.SendFiles(local_filepath)
                             logger.info(f"   🎉 文件 [{os.path.basename(local_filepath)}] 成功推送给 [{chat_name}]！")
                         else:
-                            logger.warning(f"   ⚠️ 未在本地工作区找到匹配文件。尝试过的路径:")
+                            logger.warning(f"   ⚠️ 未本地工作区找到匹配文件。尝试过的路径:")
                             for p in lookups:
                                 logger.warning(f"     - {os.path.normpath(p)}")
                 
-                # Release lock on this chat room to allow future messages
-                with thinking_lock:
-                    thinking_chats.discard(chat_name)
+                # 如果是后台定时数据库推送任务，发送成功后修改表状态
+                if is_db_task and db_task_id:
+                    import psycopg
+                    import datetime
+                    postgres_uri = os.environ.get("POSTGRES_URI")
+                    try:
+                        with psycopg.connect(postgres_uri) as conn:
+                            with conn.cursor() as cur:
+                                cur.execute(
+                                    "UPDATE public.wechat_push_queue SET status = 'sent', processed_at = %s WHERE id = %s",
+                                    (datetime.datetime.now(datetime.timezone.utc), db_task_id)
+                                )
+                                conn.commit()
+                        logger.info(f"✅ [RPA 定时推信] 成功将数据库任务 {db_task_id} 标记为已发送！")
+                    except Exception as db_err:
+                        logger.error(f"🚨 [RPA 定时推信] 更新任务 {db_task_id} 状态失败: {db_err}")
                 
-                # Check if new messages arrived in the queue during AI thinking, and trigger next sequential run!
-                with queues_lock:
-                    has_more = bool(chat_queues.get(chat_name))
-                if has_more:
-                    logger.info(f"🔄 [{chat_name}] 在AI思考期间收到了新消息，自动触发下一轮顺序回复...")
-                    trigger_thinking_for_chat(chat_name)
+                # Release lock on this chat room to allow future messages (only for live chats)
+                if not is_db_task:
+                    with thinking_lock:
+                        thinking_chats.discard(chat_name)
+                    
+                    # Check if new messages arrived in the queue during AI thinking, and trigger next sequential run!
+                    with queues_lock:
+                        has_more = bool(chat_queues.get(chat_name))
+                    if has_more:
+                        logger.info(f"🔄 [{chat_name}] 在AI思考期间收到了新消息，自动触发下一轮顺序回复...")
+                        trigger_thinking_for_chat(chat_name)
                     
         except Exception as e:
             logger.error(f"💥 UI发送阶段发生致命异常: {e}")
+            if "is_db_task" in locals() and is_db_task and "db_task_id" in locals() and db_task_id:
+                import psycopg
+                postgres_uri = os.environ.get("POSTGRES_URI")
+                try:
+                    with psycopg.connect(postgres_uri) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                "UPDATE public.wechat_push_queue SET status = 'failed', error_msg = %s WHERE id = %s",
+                                (str(e), db_task_id)
+                            )
+                            conn.commit()
+                except Exception as db_fail_err:
+                    logger.error(f"🚨 [RPA 定时推信] 失败状态更新数据库错误: {db_fail_err}")
             self_healing_reconnect()
             continue
 

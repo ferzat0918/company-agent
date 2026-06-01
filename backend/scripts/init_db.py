@@ -87,10 +87,10 @@ async def main() -> None:
                         (migration_name,)
                     )
                     await conn.commit()
-                    print(f"  ✓ Migration '{migration_name}' applied successfully!")
+                    print(f"  [OK] Migration '{migration_name}' applied successfully!")
                 except Exception as e:
                     await conn.rollback()
-                    print(f"  ❌ ERROR applying migration '{migration_name}': {e}")
+                    print(f"  [ERROR] applying migration '{migration_name}': {e}")
                     raise e
         print("Database migrations check completed!")
     else:
