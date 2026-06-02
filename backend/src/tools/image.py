@@ -4,6 +4,7 @@ import requests
 from langchain_core.tools import tool
 from langchain_core.runnables.config import var_child_runnable_config
 from src.config import GPT_API_KEY, GPT_BASE_URL
+from src.tools.wechat import push_file_to_wechat_queue, _resolve_user_id
 
 @tool
 def draw_image(prompt: str) -> str:
@@ -20,10 +21,18 @@ def draw_image(prompt: str) -> str:
     try:
         config = var_child_runnable_config.get()
         thread_id = "default"
+        channel = "web"
+        chat_name = None
         if config and isinstance(config, dict):
-            thread_id = config.get("configurable", {}).get("thread_id", "default")
+            configurable = config.get("configurable", {})
+            metadata = config.get("metadata", {})
+            thread_id = configurable.get("thread_id", "default")
+            channel = configurable.get("channel") or metadata.get("channel", "web")
+            chat_name = configurable.get("chat_name") or metadata.get("chat_name")
     except Exception:
         thread_id = "default"
+        channel = "web"
+        chat_name = None
         
     print(f"[Image Generator] Received draw task for thread [{thread_id}]. Prompt: {prompt}")
 
@@ -96,10 +105,30 @@ def draw_image(prompt: str) -> str:
             
         print(f"[Image Generator] Successfully downloaded and saved image to: {dest_filepath}")
         
-        return (
-            f"✓ 图像已成功生成！文件已安全同步至您的工作区。\n\n"
-            f"![{filename}](/workspace/{thread_id}/{filename})"
-        )
+        # 根据渠道决定图片交付方式
+        if channel == "wechat" and chat_name:
+            # 微信端：自动推送图片到微信窗口
+            user_id = _resolve_user_id(config)
+            sandbox_path = f"/workspace/{thread_id}/{filename}"
+            result = push_file_to_wechat_queue(user_id, chat_name, sandbox_path)
+            if result == "ok":
+                print(f"[Image Generator] Auto-pushed image to WeChat queue for [{chat_name}]")
+                return (
+                    f"图片已生成并自动推送到微信窗口【{chat_name}】中，请注意查收！\n"
+                    f"(文件: {filename})"
+                )
+            else:
+                print(f"[Image Generator] WeChat push failed: {result}")
+                return (
+                    f"图片已生成（{filename}），但自动推送到微信失败：{result}\n"
+                    f"请手动调用 send_wechat_file 发送文件：/workspace/{thread_id}/{filename}"
+                )
+        else:
+            # Web 端：返回 Markdown 图片语法供前端渲染
+            return (
+                f"✓ 图像已成功生成！文件已安全同步至您的工作区。\n\n"
+                f"![{filename}](/workspace/{thread_id}/{filename})"
+            )
         
     except Exception as e:
         error_detail = ""
