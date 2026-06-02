@@ -9,7 +9,7 @@ from src.config import GPT_API_KEY, GPT_BASE_URL
 def draw_image(prompt: str) -> str:
     """当你（或者子部门 Agent）需要根据文字描述生成、画制或创作任何图片、插画、Logo、海报等视觉内容时调用此工具。
     
-    该工具会将你的描述发送至 GPT 顶尖图像生成模型（DALL-E 3）完成创作，并自动将成品图保存至当前会话的物理工作区。
+    该工具会将你的描述发送至 GPT 顶尖图像生成模型（image2 ）完成创作，并自动将成品图保存至当前会话的物理工作区。
     
     Args:
         prompt: 对图片内容极其细致且富有艺术色彩的详细中文描述。

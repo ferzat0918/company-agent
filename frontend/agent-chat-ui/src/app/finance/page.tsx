@@ -48,6 +48,8 @@ export default function FinanceDashboardPage() {
     "all",
   );
   const [warnFilter, setWarnFilter] = useState<"all" | "low" | "high">("all");
+  const [minStock, setMinStock] = useState("");
+  const [maxStock, setMaxStock] = useState("");
   const [query, setQuery] = useState("");
 
   const fetchData = useCallback(async () => {
@@ -71,10 +73,12 @@ export default function FinanceDashboardPage() {
       if (kindFilter !== "all" && r.kind !== kindFilter) return false;
       const lvl = warnOf(r);
       if (warnFilter !== "all" && warnFilter !== lvl) return false;
+      if (minStock && Number(r.stock) < Number(minStock)) return false;
+      if (maxStock && Number(r.stock) > Number(maxStock)) return false;
       if (q && !`${r.code} ${r.name}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [rows, kindFilter, warnFilter, query]);
+  }, [rows, kindFilter, warnFilter, minStock, maxStock, query]);
 
   const stats = useMemo(() => {
     const total = rows.length;
@@ -146,41 +150,75 @@ export default function FinanceDashboardPage() {
         />
 
         {/* 筛选器 */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)]" />
-            <FinanceInput
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索编号 / 名称"
-              className="h-9 w-64 pl-7"
-            />
+        <div className="mb-4 border border-[var(--umx-line)] bg-[var(--umx-bg-1)] p-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)]" />
+              <FinanceInput
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="搜索编号 / 名称"
+                className="h-9 w-64 pl-7"
+              />
+            </div>
+            <FinanceSelect
+              value={kindFilter}
+              onChange={(e) =>
+                setKindFilter(e.target.value as "all" | "product" | "material")
+              }
+              className="w-32"
+            >
+              <option value="all">全部类型</option>
+              <option value="product">成品</option>
+              <option value="material">原料</option>
+            </FinanceSelect>
+            <FinanceSelect
+              value={warnFilter}
+              onChange={(e) =>
+                setWarnFilter(e.target.value as "all" | "low" | "high")
+              }
+              className="w-32"
+            >
+              <option value="all">全部状态</option>
+              <option value="low">缺货</option>
+              <option value="high">积压</option>
+            </FinanceSelect>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[10px] uppercase text-[var(--umx-text-dim)]">现库存</span>
+              <FinanceInput
+                type="number"
+                placeholder="最小"
+                value={minStock}
+                onChange={(e) => setMinStock(e.target.value)}
+                className="h-9 w-24"
+              />
+              <span className="text-[var(--umx-text-dim)]">-</span>
+              <FinanceInput
+                type="number"
+                placeholder="最大"
+                value={maxStock}
+                onChange={(e) => setMaxStock(e.target.value)}
+                className="h-9 w-24"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                setKindFilter("all");
+                setWarnFilter("all");
+                setMinStock("");
+                setMaxStock("");
+              }}
+              className="h-9 gap-1 text-[var(--umx-text-dim)] border-[var(--umx-line)] hover:text-[var(--umx-white)]"
+            >
+              重置
+            </Button>
+            <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--umx-text-dim)]">
+              已筛选 {filtered.length} / {rows.length} 条
+            </span>
           </div>
-          <FinanceSelect
-            value={kindFilter}
-            onChange={(e) =>
-              setKindFilter(e.target.value as "all" | "product" | "material")
-            }
-            className="w-32"
-          >
-            <option value="all">全部类型</option>
-            <option value="product">成品</option>
-            <option value="material">原料</option>
-          </FinanceSelect>
-          <FinanceSelect
-            value={warnFilter}
-            onChange={(e) =>
-              setWarnFilter(e.target.value as "all" | "low" | "high")
-            }
-            className="w-32"
-          >
-            <option value="all">全部状态</option>
-            <option value="low">缺货</option>
-            <option value="high">积压</option>
-          </FinanceSelect>
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--umx-text-dim)]">
-            {filtered.length} / {rows.length}
-          </span>
         </div>
 
         <DataTable

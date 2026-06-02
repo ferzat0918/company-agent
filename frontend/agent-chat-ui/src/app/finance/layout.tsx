@@ -20,7 +20,7 @@ type FinanceProfile = {
 
 const FinanceProfileContext = createContext<FinanceProfile | null>(null);
 
-export function useFinanceProfile() {
+function useFinanceProfile() {
   return useContext(FinanceProfileContext);
 }
 
@@ -32,7 +32,6 @@ const SUB_ITEMS = [
   { href: "/finance/materials",      label: "MATERIALS",   labelZh: "原料档案" },
   { href: "/finance/boms",           label: "BOM",         labelZh: "BOM 配方" },
   { href: "/finance/moves",          label: "MOVES",       labelZh: "出入库流水" },
-  { href: "/finance/import-export",  label: "IO",          labelZh: "导入 / 导出" },
 ] as const;
 
 function FinanceSubNav() {
@@ -59,10 +58,7 @@ function FinanceSubNav() {
             <span className="mr-2 text-[var(--umx-text-dim)]">
               {String(SUB_ITEMS.indexOf(it) + 1).padStart(2, "0")}
             </span>
-            <span>{it.label}</span>
-            <span className="ml-2 hidden text-[var(--umx-text-dim)] md:inline">
-              · {it.labelZh}
-            </span>
+            <span>{it.labelZh}</span>
             {isActive && (
               <span
                 aria-hidden
@@ -181,7 +177,7 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
             <UmxSymbol size={28} className="text-[var(--umx-white)]" />
             <UmxWordmark size={22} />
             <span className="ml-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--umx-text-dim)]">
-              · COMPANY AGENT / FINANCE
+              · 企业智能助手 / 财务工作台
             </span>
           </Link>
           

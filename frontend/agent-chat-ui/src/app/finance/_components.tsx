@@ -158,6 +158,116 @@ export function FinanceSelect({
   );
 }
 
+/* ── SearchableSelect — 带有输入过滤与下拉搜索的物料选择器 ── */
+
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
+
+export function SearchableSelect({
+  options,
+  value,
+  onChange,
+  placeholder = "输入关键字搜索...",
+  disabled = false,
+  className,
+}: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) {
+      setSearch(selectedOption ? selectedOption.label : "");
+    }
+  }, [value, open, selectedOption]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(search.toLowerCase()) ||
+    o.value.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div ref={containerRef} className={cn("relative w-full", className)}>
+      <div className="relative">
+        <input
+          type="text"
+          disabled={disabled}
+          value={open ? search : (selectedOption ? selectedOption.label : "")}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            setSearch("");
+          }}
+          placeholder={placeholder}
+          className={cn(
+            "h-9 w-full border border-[var(--umx-line)] bg-[var(--umx-bg-2)] pl-3 pr-8 font-mono text-[12px] text-[var(--umx-white)]",
+            "outline-none focus:border-[var(--umx-acid)] focus:ring-1 focus:ring-[var(--umx-acid)]/40",
+            "disabled:opacity-50 cursor-pointer",
+            open && "border-[var(--umx-acid)] ring-1 ring-[var(--umx-acid)]/40"
+          )}
+        />
+        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[var(--umx-text-dim)]">
+          <ChevronDown className="size-4" />
+        </div>
+      </div>
+
+      {open && !disabled && (
+        <div className="umx-scrollbar absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto border border-[var(--umx-line)] bg-[var(--umx-bg-1)] shadow-xl">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 font-mono text-[11px] text-[var(--umx-text-dim)]">
+              未找到匹配项
+            </div>
+          ) : (
+            filtered.map((o) => {
+              const isSelected = o.value === value;
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "block w-full text-left px-3 py-2 font-mono text-[12px] transition-colors cursor-pointer",
+                    isSelected
+                      ? "bg-[var(--umx-acid)] text-black font-bold"
+                      : "text-[var(--umx-white)] hover:bg-[var(--umx-bg-2)]"
+                  )}
+                >
+                  {o.label}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FinanceTextarea({
   className,
   ...props
