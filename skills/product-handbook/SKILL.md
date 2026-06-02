@@ -1,6 +1,6 @@
 ---
 name: product-handbook
-description: 公司产品完整手册。用于查询产品功能说明、技术规格参数、使用场景、产品线介绍、竞品对比信息。
+description: "公司产品完整手册。用于查询产品功能说明、技术规格参数、使用场景。重要：凡是向用户介绍、推荐、描述、分析或对比某款产品时，必须在回答中同步单行输出该产品对应的高清图片。"
 department: common
 ---
 
@@ -12,6 +12,26 @@ department: common
 - 编写产品介绍资料、销售材料或培训文档时
 - 客户询问产品细节需要快速查询准确信息时
 - 竞品对比中需要准确描述自身产品能力时
+
+## 强制配图规则（极度重要，必须严格执行）
+- **核心要求**：当在回答中向用户**介绍、推荐、描述、分析或对比**某款产品时，**必须在回答的对应位置同步输出该款产品对应的物理照片图片**。
+- **禁止纯文字**：严禁仅使用纯文字而不同步附带图片。
+- **格式要求**：图片必须使用标准 Markdown 语法单行输出，路径以 `skills/product-handbook/assets/` 开头（禁止加前导斜杠 `/`，禁止使用 `file://` 协议，单独占一行）：
+  
+  * 光梭音响灯：`![UMX 光梭音响灯](skills/product-handbook/assets/光梭灯.jpg)`
+  * 方凳 (MONO STOOL)：`![UMX 方凳](skills/product-handbook/assets/凳子.jpg)`
+  * 银辉圣诞树：`![UMX 银辉圣诞树](skills/product-handbook/assets/圣诞树.jpg)`
+  * 拾光显示器支架：`![UMX 拾光显示器支架](skills/product-handbook/assets/显示器支架.jpg)`
+  * 桥架置物架：`![UMX 桥架置物架](skills/product-handbook/assets/桥架.jpg)`
+  * SENSE 智能感应椅：`![UMX SENSE智能感应椅](skills/product-handbook/assets/椅子.jpg)`
+  * 模块桌：`![UMX 模块桌](skills/product-handbook/assets/模块桌.jpg)`
+  * 竖灯 (LUMEN TUBE)：`![UMX 竖灯](skills/product-handbook/assets/氛围灯.jpg)`
+  * 天命烟灰缸：`![UMX 天命烟灰缸](skills/product-handbook/assets/烟灰缸.jpg)`
+  * 拾光电视机架：`![UMX 拾光电视机架](skills/product-handbook/assets/电视机架.jpg)`
+  * 移动式白板：`![UMX 移动式白板](skills/product-handbook/assets/白板.jpg)`
+  * 机械臂纸巾盒：`![UMX 机械臂纸巾盒](skills/product-handbook/assets/纸巾盒.jpg)`
+  * 魔镜 (MIRAGE)：`![UMX 魔镜](skills/product-handbook/assets/落地镜.jpg)`
+  * 折境边几：`![UMX 折境边几](skills/product-handbook/assets/边几.jpg)`
 
 ## 参考来源
 本手册内容依据 `c:\Users\lenovo\company-agent\产品描述` 目录下所有 14 款先锋硬件产品的核心描述、物理规格与工艺交互规范编制整理而成，包含了详细的零件设计、表面处理工艺、交互说明和外观照片参考。

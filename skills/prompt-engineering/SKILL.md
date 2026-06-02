@@ -1,6 +1,7 @@
 ---
 name: prompt-engineering
 description: "Master prompt engineering for AI agents and LLM applications. Use when: designing system prompts, writing tool descriptions, debugging agent decisions. CRITICAL: Use when calling a subagent to issue instructions, or when calling the draw_image tool (you must read this skill in its entirety to learn how to communicate with the LLM)."
+department: common
 ---
 
 # Prompt Engineering for AI Agents

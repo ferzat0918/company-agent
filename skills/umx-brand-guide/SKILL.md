@@ -1,6 +1,7 @@
 ---
 name: umx-brand-guide
 description: "UMX 品牌 VI 手册 — 当用户提到 UMX 品牌、VI 规范、品牌手册、品牌设计指南、LOGO规范、色彩体系、字体规范、版式、交互/UI、品牌定位、未来主义品牌，或者任何需要查询 UMX 品牌视觉识别系统信息的场景，都必须使用此 skill。即使只是简单提到 UMX 或问品牌相关的信息，也必须激活此 skill。"
+department: brand
 ---
 
 # UMX 品牌 VI 手册
