@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import { FC, memo, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useQueryState } from "nuqs";
 import { CheckIcon, CopyIcon, File, Download } from "lucide-react";
 import { SyntaxHighlighter } from "@/components/thread/syntax-highlighter";
@@ -162,7 +163,7 @@ function MarkdownImage({
       </a>
 
       {/* Lightbox / Zoomed image preview modal */}
-      {isZoomed && (
+      {isZoomed && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 bg-black/85 backdrop-blur-md z-[9999] flex items-center justify-center cursor-zoom-out select-none transition-all duration-300"
           onClick={() => setIsZoomed(false)}
@@ -172,7 +173,8 @@ function MarkdownImage({
             alt={alt || "zoomed-image"}
             className="max-w-[95vw] max-h-[95vh] object-contain rounded shadow-2xl scale-95 animate-in fade-in zoom-in-95 duration-200"
           />
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );
