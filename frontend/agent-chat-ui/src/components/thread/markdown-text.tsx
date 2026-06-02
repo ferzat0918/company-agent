@@ -87,6 +87,7 @@ function MarkdownImage({
   const isSvg = resolvedSrc.toLowerCase().endsWith(".svg");
   const [bgMode, setBgMode] = useState<"light" | "dark">(isSvg ? "light" : "light");
   const [autoDetected, setAutoDetected] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
 
   const isLight = bgMode === "light";
 
@@ -106,8 +107,9 @@ function MarkdownImage({
           src={resolvedSrc}
           alt={alt || "image"}
           loading="lazy"
-          className="max-w-full rounded-[2px]"
+          className="max-w-full rounded-[2px] cursor-zoom-in hover:opacity-90 transition-opacity"
           style={{ maxHeight: "480px" }}
+          onClick={() => setIsZoomed(true)}
           onLoad={(e) => {
             if (isSvg || autoDetected) return;
             // Detect image brightness using Canvas
@@ -158,6 +160,20 @@ function MarkdownImage({
       >
         <Download className="h-5 w-5" />
       </a>
+
+      {/* Lightbox / Zoomed image preview modal */}
+      {isZoomed && (
+        <div
+          className="fixed inset-0 bg-black/85 backdrop-blur-md z-[9999] flex items-center justify-center cursor-zoom-out select-none transition-all duration-300"
+          onClick={() => setIsZoomed(false)}
+        >
+          <img
+            src={resolvedSrc}
+            alt={alt || "zoomed-image"}
+            className="max-w-[95vw] max-h-[95vh] object-contain rounded shadow-2xl scale-95 animate-in fade-in zoom-in-95 duration-200"
+          />
+        </div>
+      )}
     </span>
   );
 }
