@@ -35,6 +35,7 @@ from src.tools import (
     schedule_agent_task,
     delete_scheduled_task,
     list_scheduled_tasks,
+    supabase_read_query,
 )
 
 # ─── Prompt loader ──────────────────────────────────────────────
@@ -201,6 +202,7 @@ _agent_tools: list = [
     schedule_agent_task,
     delete_scheduled_task,
     list_scheduled_tasks,
+    supabase_read_query,
 ]
 
 _tavily_tool = get_tavily_tool()
@@ -261,7 +263,7 @@ SUBAGENTS = [
     },
     {
         "name": "tob-agent",
-        "description": "处理 B 端销售和客户相关任务，如方案书、报价、客户邮件",
+        "description": "处理 B端销售和客户相关任务，如方案书、报价、客户邮件",
         "system_prompt": _tob_prompt + _SANDBOX_SUFFIX,
         "model": _llm,
         "skills": skills_dirs,
@@ -270,13 +272,6 @@ SUBAGENTS = [
         "name": "content-agent",
         "description": "处理内容产出相关任务，如选题策划、脚本、平台规范",
         "system_prompt": _content_prompt + _SANDBOX_SUFFIX,
-        "model": _llm,
-        "skills": skills_dirs,
-    },
-    {
-        "name": "wechat-agent",
-        "description": "专门处理来自微信端的消息。负责以亲和、精炼的格式答复微信用户，并在需要时调度营销、HR、B端销售等后台 Agent 协作。",
-        "system_prompt": _wechat_prompt + _SANDBOX_SUFFIX,
         "model": _llm,
         "skills": skills_dirs,
     },

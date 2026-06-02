@@ -10,6 +10,7 @@ from src.tools.time import get_current_time
 from src.tools.webpage import fetch_webpage
 from src.tools.search import get_tavily_tool
 from src.tools.schedule import schedule_agent_task, delete_scheduled_task, list_scheduled_tasks
+from src.tools.supabase_mcp import supabase_read_query
 
 __all__ = [
     "send_wechat_file",
@@ -21,5 +22,6 @@ __all__ = [
     "schedule_agent_task",
     "delete_scheduled_task",
     "list_scheduled_tasks",
+    "supabase_read_query",
 ]
 
