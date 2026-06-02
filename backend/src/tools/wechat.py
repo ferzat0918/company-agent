@@ -5,50 +5,6 @@ from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 from src.config import POSTGRES_URI
 
-
-def _resolve_user_id(config: RunnableConfig = None) -> str:
-    """从 RunnableConfig 中解析 user_id，提供默认 fallback。"""
-    user_id = "d81a0391-2663-4f0b-ba89-39f17773a9a1"  # Freddy (default)
-    if config and isinstance(config, dict):
-        configurable = config.get("configurable", {})
-        metadata = config.get("metadata", {})
-        user_id = (
-            configurable.get("owner")
-            or metadata.get("owner")
-            or configurable.get("user_id")
-            or metadata.get("user_id")
-            or user_id
-        )
-    return user_id
-
-
-def push_file_to_wechat_queue(user_id: str, chat_name: str, filepath: str) -> str:
-    """写入微信文件推送队列，供 send_wechat_file 和 draw_image 等工具共享调用。
-
-    Returns:
-        "ok" on success, or "error: ..." on failure.
-    """
-    try:
-        with psycopg.connect(POSTGRES_URI) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO public.wechat_push_queue (user_id, chat_name, content, attachments, status)
-                    VALUES (%s, %s, %s, %s, 'pending')
-                    """,
-                    (
-                        user_id,
-                        chat_name,
-                        f"文件推送：{os.path.basename(filepath)}",
-                        json.dumps([filepath]),
-                    ),
-                )
-                conn.commit()
-        return "ok"
-    except Exception as e:
-        return f"error: {e}"
-
-
 @tool
 def send_wechat_message(chat_name: str, content: str, config: RunnableConfig = None) -> str:
     """直接向指定的微信联系人或聊天窗口发送文本消息（自动在 PC 微信客户端中打字并发送）。
@@ -93,27 +49,46 @@ def send_wechat_message(chat_name: str, content: str, config: RunnableConfig = N
 
 @tool
 def send_wechat_file(filepath: str, chat_name: str = None, config: RunnableConfig = None) -> str:
-    """发送本地沙盒生成的文件、图片或矢量图到微信聊天窗口中。
-    
-    当你（或后台子智能体）在沙盒中生成了任何文件（如报告、Excel、图片、LOGO 矢量图等），你可以调用此工具发送该实体文件给指定联系人。
-    
+    """发送文件、图片或矢量图到微信聊天窗口中。
+
+    支持两种文件来源：
+    1. 沙盒生成的文件（路径以 '/workspace/' 开头），如报告、Excel、生成的图片等
+    2. Skill 中的产品素材（路径以 '/skills/' 开头），如产品实拍照片等
+
     Args:
-        filepath: 文件在沙盒中的绝对路径，必须以 '/workspace/' 开头。
-                  例如: '/workspace/umx-logo/logo-full.svg' 或 '/workspace/weekly_report.xlsx'。
+        filepath: 文件路径，必须以 '/workspace/' 或 '/skills/' 开头。
+                  例如: '/workspace/weekly_report.xlsx' 或 '/skills/product-handbook/assets/电视机架.jpg'。
         chat_name: 可选。目标微信聊天窗口/好友名字。如果为空，则默认推送到当前正在对话的会话窗口中。
     """
-    if not filepath.startswith("/workspace/"):
-        return f"错误：文件路径必须以 '/workspace/' 开头，当前为: {filepath}"
+    if not (filepath.startswith("/workspace/") or filepath.startswith("/skills/")):
+        return f"错误：文件路径必须以 '/workspace/' 或 '/skills/' 开头，当前为: {filepath}"
         
-    # 如果指定了目标聊天窗口，则直接通过数据库推信队列推送
+    # 如果指定了目标聊天窗口，则直接通过数据库推信队列推送，实现主动发给任意指定联系人
     if chat_name:
-        user_id = _resolve_user_id(config)
-        result = push_file_to_wechat_queue(user_id, chat_name, filepath)
-        if result == "ok":
+        user_id = "d81a0391-2663-4f0b-ba89-39f17773a9a1" # Freddy
+        if config and isinstance(config, dict):
+            configurable = config.get("configurable", {})
+            metadata = config.get("metadata", {})
+            user_id = (
+                configurable.get("owner") or 
+                metadata.get("owner") or 
+                configurable.get("user_id") or 
+                metadata.get("user_id") or 
+                user_id
+            )
+        try:
+            with psycopg.connect(POSTGRES_URI) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO public.wechat_push_queue (user_id, chat_name, content, attachments, status)
+                        VALUES (%s, %s, %s, %s, 'pending')
+                        """
+                    , (user_id, chat_name, f"文件推送：{os.path.basename(filepath)}", json.dumps([filepath])))
+                    conn.commit()
             return f"✓ 已成功将文件推入发送队列！\n- 目标窗口: {chat_name}\n- 文件路径: {filepath}\n宿主机 RPA 机器人稍后将自动为您发送该文件。"
-        else:
-            return f"错误：写入微信文件队列失败 - {result}"
+        except Exception as e:
+            return f"错误：写入微信文件队列失败 - {str(e)}"
             
     # 如果没有指定 chat_name，保持原样，返回前缀标记由当前交互式会话捕获
     return f"[WECHAT_FILE_PUSH]: {filepath}"
-
