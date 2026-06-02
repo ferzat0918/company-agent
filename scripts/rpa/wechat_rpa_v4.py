@@ -507,6 +507,66 @@ def background_db_push_poller():
             
         time.sleep(5.0)
 
+def _resolve_agent_filepath(container_path: str, thread_id: str = None) -> str | None:
+    """Map a container-style path (/workspace/... or /skills/...) to a local host path.
+    
+    The agent inside Docker uses paths like:
+      - /skills/product-handbook/assets/电视机架.jpg  → host: <project>/skills/product-handbook/assets/电视机架.jpg
+      - /workspace/<thread_id>/art_xxx.png            → host: <project>/workspace/<thread_id>/art_xxx.png
+    
+    Returns the resolved local path if the file exists, otherwise None.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    
+    # ── /skills/ paths: direct mapping to project_root/skills/ ──
+    if container_path.startswith("/skills/"):
+        rel_path = container_path[len("/skills/"):]  # e.g. "product-handbook/assets/电视机架.jpg"
+        local = os.path.normpath(os.path.join(project_root, "skills", rel_path))
+        if os.path.exists(local):
+            logger.info(f"   📦 [Skills 素材] 匹配到本地文件: {local}")
+            return local
+        # Fallback: basename search in the skills tree
+        basename = os.path.basename(rel_path)
+        skills_dir = os.path.join(project_root, "skills")
+        for root, dirs, files in os.walk(skills_dir):
+            if basename in files:
+                found = os.path.join(root, basename)
+                logger.info(f"   📦 [Skills 素材 basename fallback] 找到: {found}")
+                return found
+        logger.warning(f"   ⚠️ [Skills 素材] 未在本地 skills/ 目录找到: {rel_path}")
+        return None
+    
+    # ── /workspace/ paths: existing logic with thread-scoped fallbacks ──
+    if container_path.startswith("/workspace/"):
+        rel_path = container_path[len("/workspace/"):]
+        workspace_dir = os.path.join(project_root, "workspace")
+        
+        lookups = []
+        if thread_id:
+            lookups.append(os.path.join(workspace_dir, thread_id, rel_path))
+            lookups.append(os.path.join(workspace_dir, thread_id, os.path.basename(rel_path)))
+        lookups.append(os.path.join(workspace_dir, rel_path))
+        lookups.append(os.path.join(workspace_dir, os.path.basename(rel_path)))
+        
+        for path in lookups:
+            path = os.path.normpath(path)
+            if os.path.exists(path):
+                return path
+        
+        # Recursive basename search
+        basename = os.path.basename(rel_path)
+        logger.info(f"   🔍 尝试在 workspace/ 目录下递归搜索文件: {basename}")
+        for root, dirs, files in os.walk(workspace_dir):
+            if basename in files:
+                return os.path.join(root, basename)
+        
+        logger.warning(f"   ⚠️ 未在本地 workspace/ 目录找到: {rel_path}, 尝试过: {[os.path.normpath(p) for p in lookups]}")
+        return None
+    
+    logger.warning(f"   ⚠️ 未识别的路径前缀: {container_path}")
+    return None
+
 def main():
     global listen_chats
     
@@ -594,39 +654,8 @@ def main():
                 if target_files:
                     logger.info(f"📂 [RPA 工具雷达] 拦截到大模型发送文件请求，共 {len(target_files)} 个...")
                     
-                    # Updated: Resolve workspace relative to project root
-                    script_dir = os.path.dirname(os.path.abspath(__file__))
-                    workspace_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "workspace"))
-                    
                     for filepath in target_files:
-                        # Clean prefix, keep the subfolder structure
-                        rel_path = filepath.replace("/workspace/", "", 1)
-                        
-                        # Generate 4 robust lookup paths
-                        lookups = [
-                            # A: Thread-isolated exact path (only if not a DB task since DB tasks don't have standard thread folder scopes here)
-                            os.path.join(workspace_dir, thread_id if not is_db_task else "", rel_path),
-                            # B: Thread-isolated basename fallback
-                            os.path.join(workspace_dir, thread_id if not is_db_task else "", os.path.basename(rel_path)),
-                            # C: Root workspace exact path
-                            os.path.join(workspace_dir, rel_path),
-                            # D: Root workspace basename fallback
-                            os.path.join(workspace_dir, os.path.basename(rel_path))
-                        ]
-                        
-                        local_filepath = None
-                        for path in lookups:
-                            path = os.path.normpath(path)
-                            if os.path.exists(path):
-                                local_filepath = path
-                                break
-                        
-                        if not local_filepath:
-                            logger.info(f"   🔍 尝试在 workspace/ 目录下递归搜索文件: {os.path.basename(rel_path)}")
-                            for root, dirs, files in os.walk(workspace_dir):
-                                if os.path.basename(rel_path) in files:
-                                    local_filepath = os.path.join(root, os.path.basename(rel_path))
-                                    break
+                        local_filepath = _resolve_agent_filepath(filepath, thread_id if not is_db_task else None)
                         
                         if local_filepath:
                             logger.info(f"   - 正在提取并传输文件: {local_filepath}")
@@ -634,9 +663,7 @@ def main():
                             wx.SendFiles(local_filepath)
                             logger.info(f"   🎉 文件 [{os.path.basename(local_filepath)}] 成功推送给 [{chat_name}]！")
                         else:
-                            logger.warning(f"   ⚠️ 未本地工作区找到匹配文件。尝试过的路径:")
-                            for p in lookups:
-                                logger.warning(f"     - {os.path.normpath(p)}")
+                            logger.warning(f"   ⚠️ 未找到匹配文件: {filepath}")
                 
                 # 如果是后台定时数据库推送任务，发送成功后修改表状态
                 if is_db_task and db_task_id:
