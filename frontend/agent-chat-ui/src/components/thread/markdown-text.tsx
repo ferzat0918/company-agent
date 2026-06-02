@@ -421,30 +421,39 @@ const MarkdownTextImpl: FC<{ children: string }> = ({ children }) => {
 
         if (isWorkspaceFile) {
           const fileName = resolvedHref.split("/").pop() || "download-file";
+          const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(fileName);
+
           return (
-            <a
-              href={resolvedHref}
-              download={fileName}
-              className="my-3 flex items-center justify-between gap-4 rounded-xl border border-[var(--umx-line)] bg-[var(--umx-bg-2)] p-4 text-[var(--umx-text)] transition-all duration-300 hover:border-[var(--umx-brand)] hover:shadow-lg hover:shadow-[var(--umx-brand-glow)] group/download no-underline"
-              {...props}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--umx-bg-3)] text-[var(--umx-brand)] border border-[var(--umx-line)] transition-colors group-hover/download:bg-[var(--umx-brand)] group-hover/download:text-white">
-                  <File className="h-5 w-5" />
+            <span className="inline-block w-full">
+              {/* Image preview — guaranteed thumbnail for image files */}
+              {isImage && (
+                <MarkdownImage src={resolvedHref} alt={String(children || fileName)} />
+              )}
+              {/* Download card */}
+              <a
+                href={resolvedHref}
+                download={fileName}
+                className="my-3 flex items-center justify-between gap-4 rounded-xl border border-[var(--umx-line)] bg-[var(--umx-bg-2)] p-4 text-[var(--umx-text)] transition-all duration-300 hover:border-[var(--umx-brand)] hover:shadow-lg hover:shadow-[var(--umx-brand-glow)] group/download no-underline"
+                {...props}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--umx-bg-3)] text-[var(--umx-brand)] border border-[var(--umx-line)] transition-colors group-hover/download:bg-[var(--umx-brand)] group-hover/download:text-white">
+                    <File className="h-5 w-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-mono text-sm font-semibold tracking-wide truncate max-w-[240px] text-[var(--umx-text)] no-underline">
+                      {children || fileName}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
+                      工作区沙盒文件
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-mono text-sm font-semibold tracking-wide truncate max-w-[240px] text-[var(--umx-text)] no-underline">
-                    {children || fileName}
-                  </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">
-                    工作区沙盒文件
-                  </span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg-3)] text-[var(--umx-silver)] transition-all duration-300 group-hover/download:border-[var(--umx-brand)] group-hover/download:bg-[var(--umx-brand)] group-hover/download:text-white group-hover/download:scale-110">
+                  <Download className="h-4 w-4" />
                 </div>
-              </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--umx-line)] bg-[var(--umx-bg-3)] text-[var(--umx-silver)] transition-all duration-300 group-hover/download:border-[var(--umx-brand)] group-hover/download:bg-[var(--umx-brand)] group-hover/download:text-white group-hover/download:scale-110">
-                <Download className="h-4 w-4" />
-              </div>
-            </a>
+              </a>
+            </span>
           );
         }
 
