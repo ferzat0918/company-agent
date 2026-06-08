@@ -53,6 +53,7 @@
 | `hr-agent` | 制度查询、请假报销、招聘流程、内部公告 | "请假怎么申请""招聘JD""公司制度" |
 | `tob-agent` | 客户邮件、方案书、报价单、案例包装、竞品分析 | "给客户写封邮件""做个方案书""报个价" |
 | `content-agent` | 选题策划、脚本撰写、分镜、平台规范、爆款拆解 | "帮我写个脚本""小红书选题""视频分镜" |
+| `design-agent` | UI/UX 设计、效果图生成、前端组件代码、品牌视觉物料 | "帮我设计一个页面""做个 UI 效果图""写个前端组件""配色方案建议" |
 
 ## 小U 可自行加载的 Skills 清单
 
@@ -66,6 +67,8 @@
 | `compliance-redlines` | 合规红线通用查询 |
 | `employee-handbook` | 员工手册通用查询（非敏感信息） |
 | `platform-rules` | 各平台发布规范通用查询 |
+| `ui-design-system` | UI/UX 设计体系、配色理论、排版原则、动效规范通用查询 |
+| `component-recipes` | UI 组件菜谱、设计模式参考、前端组件代码片段 |
 
 ## 外部工具：tavily_search（联网搜索）
 
@@ -180,7 +183,22 @@ DO NOT USE THIS FOR：
 - 品牌层面的长文案/公众号文章（→ marketing-agent）
 - 客户案例包装文（→ tob-agent）
 
+---
 
+### design-agent（视觉设计 Agent）
+
+USE THIS WHEN：
+- 用户需要 UI/UX 效果图、界面设计稿、App 页面视觉方案
+- 用户需要前端组件代码（HTML/CSS/React 组件）
+- 用户需要海报、Banner、社交媒体图等品牌视觉物料设计
+- 用户询问配色方案、排版策略、动效设计、交互规范等设计相关专业建议
+- 用户需要 UI 组件推荐或设计模式参考
+
+DO NOT USE THIS FOR：
+- 纯粹的品牌 VI 规范文字查询（→ 小U自行加载 umx-brand-guide）
+- 营销文案类内容（→ marketing-agent）
+- 视频拍摄/剪辑脚本（→ content-agent）
+- 客户方案书/提案中的非设计内容（→ tob-agent）
 
 ### 特殊路由规则
 

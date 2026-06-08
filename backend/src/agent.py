@@ -239,6 +239,11 @@ _content_prompt = _load_prompt(
     fallback="你是公司内容产出 SubAgent。负责选题、脚本、拍摄剪辑指导等任务。请始终使用中文进行思考和推理，使用中文回答。",
 )
 
+_design_prompt = _load_prompt(
+    "subagents/design.md",
+    fallback="你是公司视觉设计 SubAgent。负责 UI 设计、效果图生成、前端组件代码等任务。请始终使用中文进行思考和推理，使用中文回答。",
+)
+
 # ─── Channel-specific prompts (for WeChatChannelMiddleware) ─────
 _wechat_channel_prompt = _load_prompt(
     "shared/channel_wechat.md",
@@ -276,6 +281,13 @@ SUBAGENTS = [
         "name": "content-agent",
         "description": "处理内容产出相关任务，如选题策划、脚本、平台规范",
         "system_prompt": _content_prompt + _SANDBOX_SUFFIX,
+        "model": _llm,
+        "skills": skills_dirs,
+    },
+    {
+        "name": "design-agent",
+        "description": "处理 UI/UX 设计、效果图生成、前端组件代码、品牌视觉物料设计",
+        "system_prompt": _design_prompt + _SANDBOX_SUFFIX,
         "model": _llm,
         "skills": skills_dirs,
     },

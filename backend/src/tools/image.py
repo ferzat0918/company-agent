@@ -5,14 +5,41 @@ from langchain_core.tools import tool
 from langchain_core.runnables.config import var_child_runnable_config
 from src.config import GPT_API_KEY, GPT_BASE_URL
 
+# UMX 品牌视觉锚点 — 当 style="umx-futurism" 时自动注入到 prompt 前缀
+_UMX_STYLE_PREFIX = (
+    "Futuristic cyber-punk aesthetics with retro-futurism influence. "
+    "Sleek dark mode design on stealth black #0A0A0A background. "
+    "Accent colors: neon green #DAFC08 and vivid purple #7201FF. "
+    "Matte sandblasted aerospace-grade aluminum texture, "
+    "glassmorphism panels with frosted blur effect, "
+    "strong geometric grid layout (5x9 or 9x5), "
+    "backlighting with sharp shadows and metallic rim light, "
+    "uppercase typography with tight line height, "
+    "cold mechanical structure meets emotional light field. "
+    "Premium, minimal, and uncompromising. "
+)
+
+# 允许的尺寸列表
+_VALID_SIZES = {"1024x1024", "1536x1024", "1024x1536", "auto"}
+
+
 @tool
-def draw_image(prompt: str) -> str:
+def draw_image(prompt: str, size: str = "1024x1024", style: str = "auto") -> str:
     """当你（或者子部门 Agent）需要根据文字描述生成、画制或创作任何图片、插画、Logo、海报等视觉内容时调用此工具。
     
     该工具会将你的描述发送至 GPT 顶尖图像生成模型（image2 ）完成创作，并自动将成品图保存至当前会话的物理工作区。
     
     Args:
-        prompt: 对图片内容极其细致且富有艺术色彩的详细中文描述。
+        prompt: 对图片内容极其细致且富有艺术色彩的详细描述。
+        size: 图片尺寸。可选值：
+            - "1024x1024"（默认，正方形）
+            - "1536x1024"（横版，适合海报/Banner）
+            - "1024x1536"（竖版，适合手机壁纸/竖版海报）
+            - "auto"（等同于 1024x1024）
+        style: 风格预设。可选值：
+            - "auto"（默认，不注入额外风格词）
+            - "umx-futurism"（自动注入 UMX 品牌视觉锚点词：暗色调、霓虹强调色、铝合金质感、赛博朋克风格等）
+            - "natural"（自然风格，不注入额外风格词）
     """
     if not GPT_API_KEY:
         return "错误：未配置生图 API 秘钥 (GPT_API_KEY)，请联系系统管理员在 .env 中配置。"
@@ -24,8 +51,19 @@ def draw_image(prompt: str) -> str:
             thread_id = config.get("configurable", {}).get("thread_id", "default")
     except Exception:
         thread_id = "default"
+
+    # 规范化尺寸参数
+    if size not in _VALID_SIZES:
+        size = "1024x1024"
+    if size == "auto":
+        size = "1024x1024"
+
+    # 风格注入：当选择 umx-futurism 时，自动在用户 prompt 前注入品牌视觉锚点
+    final_prompt = prompt
+    if style == "umx-futurism":
+        final_prompt = _UMX_STYLE_PREFIX + prompt
         
-    print(f"[Image Generator] Received draw task for thread [{thread_id}]. Prompt: {prompt}")
+    print(f"[Image Generator] Received draw task for thread [{thread_id}]. Size: {size}, Style: {style}. Prompt: {prompt}")
 
     headers = {
         "Authorization": f"Bearer {GPT_API_KEY}",
@@ -34,9 +72,9 @@ def draw_image(prompt: str) -> str:
     
     payload = {
         "model": "gpt-image-2",
-        "prompt": prompt,
+        "prompt": final_prompt,
         "n": 1,
-        "size": "1024x1024"
+        "size": size
     }
 
     try:
