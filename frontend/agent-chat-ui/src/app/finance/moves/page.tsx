@@ -22,6 +22,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { readCsvText } from "@/lib/decode-csv";
 import {
+  BulkActionBar,
   DataTable,
   FieldLabel,
   FinanceInput,
@@ -36,6 +37,7 @@ import {
   PRODUCT_OUT_TYPES,
   SearchableSelect,
   SectionLabel,
+  useRowSelection,
   useToast,
 } from "../_components";
 import { useAuth } from "@/providers/Auth";
@@ -294,6 +296,42 @@ export default function FinanceMovesPage() {
   }, [rows, kindTab, typeFilter, startDate, endDate, minQty, maxQty, minPrice, maxPrice, platformFilter, query, productMap, materialMap]);
 
 
+
+  const {
+    selectedIds,
+    selection,
+    clear: clearSelection,
+  } = useRowSelection(filtered);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (!confirm(`确认删除选中的 ${ids.length} 条流水？删除会影响库存统计，不可恢复。`)) return;
+    setBulkDeleting(true);
+    const { error } = await supabase
+      .from("fin_stock_moves")
+      .delete()
+      .in("id", ids);
+    setBulkDeleting(false);
+    if (error) {
+      show("err", `批量删除失败：${error.message}`);
+      return;
+    }
+    show("ok", `已删除 ${ids.length} 条`);
+    clearSelection();
+    fetchAll();
+  };
+
+  const exportSelected = () => {
+    const data = filtered.filter((r) => selectedIds.has(r.id));
+    if (data.length === 0) return;
+    const fname = `stock_moves_selected_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "moves");
+    XLSX.writeFile(wb, fname);
+    show("ok", `已导出选中的 ${data.length} 条记录`);
+  };
 
   const startNew = () =>
     setEditing({
@@ -833,8 +871,17 @@ export default function FinanceMovesPage() {
           </div>
         </div>
 
+        <BulkActionBar
+          count={selectedIds.size}
+          deleting={bulkDeleting}
+          onDelete={bulkDelete}
+          onExport={exportSelected}
+          onClear={clearSelection}
+        />
+
         <DataTable
           rows={filtered}
+          selection={selection}
           empty={loading ? "正在加载数据..." : "尚无流水记录"}
           columns={[
             {
