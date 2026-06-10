@@ -2,6 +2,8 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Download, Loader2, Trash2, X } from "lucide-react";
 
 /* ── Section label (§NN TITLE) — 同 profile / admin 页 ── */
 
@@ -178,6 +180,104 @@ export function DataTable<T>({
             )}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── 多选状态 hook — 基于当前筛选结果集合 ─────────────── */
+
+export function useRowSelection<T extends { id: string }>(rows: T[]) {
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+
+  // 数据刷新 / 筛选变化后，剔除已不在当前结果里的 id（防幽灵选中）
+  React.useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(rows.map((r) => r.id));
+      const next = new Set(Array.from(prev).filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [rows]);
+
+  const allChecked =
+    rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+
+  const selection: RowSelection<T> = {
+    selectedIds,
+    getId: (r) => r.id,
+    onToggleRow: (id) =>
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    onToggleAll: () => {
+      if (allChecked) setSelectedIds(new Set());
+      else
+        setSelectedIds(
+          (prev) => new Set([...Array.from(prev), ...rows.map((r) => r.id)]),
+        );
+    },
+    allChecked,
+    someChecked: selectedIds.size > 0,
+  };
+
+  const clear = React.useCallback(() => setSelectedIds(new Set()), []);
+
+  return { selectedIds, selection, clear };
+}
+
+/* ── 批量操作栏 — 选中 >0 时浮现在表格上方 ────────────── */
+
+export function BulkActionBar({
+  count,
+  deleting = false,
+  onDelete,
+  onExport,
+  onClear,
+}: {
+  count: number;
+  deleting?: boolean;
+  onDelete: () => void;
+  onExport: () => void;
+  onClear: () => void;
+}) {
+  if (count === 0) return null;
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-3 border border-[var(--umx-acid)] bg-[var(--umx-acid)]/5 px-4 py-2.5">
+      <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--umx-acid)]">
+        已选 {count} 项
+      </span>
+      <div className="ml-auto flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExport}
+          className="gap-1.5"
+        >
+          <Download className="size-3" />
+          导出选中
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onDelete}
+          disabled={deleting}
+          className="gap-1.5 border-[#ff6b6b]/60 text-[#ff6b6b] hover:text-[#ff6b6b]"
+        >
+          {deleting ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Trash2 className="size-3" />
+          )}
+          批量删除
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onClear} className="gap-1.5">
+          <X className="size-3" />
+          取消选择
+        </Button>
       </div>
     </div>
   );
