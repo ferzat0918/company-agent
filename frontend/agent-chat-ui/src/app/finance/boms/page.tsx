@@ -21,6 +21,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { readCsvText } from "@/lib/decode-csv";
 import {
+  BulkActionBar,
   DataTable,
   FieldLabel,
   FinanceInput,
@@ -28,6 +29,7 @@ import {
   FinanceTextarea,
   SearchableSelect,
   SectionLabel,
+  useRowSelection,
   useToast,
 } from "../_components";
 
@@ -216,6 +218,42 @@ export default function FinanceBomsPage() {
       return true;
     });
   }, [rows, productFilter, materialFilter, minQty, maxQty, minLoss, maxLoss, query, productMap, materialMap]);
+
+  const {
+    selectedIds,
+    selection,
+    clear: clearSelection,
+  } = useRowSelection(filtered);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (!confirm(`确认删除选中的 ${ids.length} 条 BOM 配方？不可恢复。`)) return;
+    setBulkDeleting(true);
+    const { error } = await supabase
+      .from("fin_boms")
+      .delete()
+      .in("id", ids);
+    setBulkDeleting(false);
+    if (error) {
+      show("err", `批量删除失败：${error.message}`);
+      return;
+    }
+    show("ok", `已删除 ${ids.length} 条`);
+    clearSelection();
+    fetchAll();
+  };
+
+  const exportSelected = () => {
+    const data = filtered.filter((r) => selectedIds.has(r.id));
+    if (data.length === 0) return;
+    const fname = `boms_selected_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "boms");
+    XLSX.writeFile(wb, fname);
+    show("ok", `已导出选中的 ${data.length} 条记录`);
+  };
 
   const startNew = () =>
     setEditing({
@@ -702,8 +740,17 @@ export default function FinanceBomsPage() {
           </div>
         </div>
 
+        <BulkActionBar
+          count={selectedIds.size}
+          deleting={bulkDeleting}
+          onDelete={bulkDelete}
+          onExport={exportSelected}
+          onClear={clearSelection}
+        />
+
         <DataTable
           rows={filtered}
+          selection={selection}
           empty={
             loading ? "正在加载数据..." : "尚无配方，点击右上角「新建配方」"
           }
