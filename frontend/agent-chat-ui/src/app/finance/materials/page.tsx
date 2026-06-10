@@ -8,12 +8,14 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { readCsvText } from "@/lib/decode-csv";
 import {
+  BulkActionBar,
   DataTable,
   FieldLabel,
   FinanceInput,
   FinanceSelect,
   FinanceTextarea,
   SectionLabel,
+  useRowSelection,
   useToast,
 } from "../_components";
 import { useAuth } from "@/providers/Auth";
@@ -187,6 +189,42 @@ export default function FinanceMaterialsPage() {
       return true;
     });
   }, [rows, minPrice, maxPrice, alertConfigFilter, query]);
+
+  const {
+    selectedIds,
+    selection,
+    clear: clearSelection,
+  } = useRowSelection(filtered);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (!confirm(`确认删除选中的 ${ids.length} 条原料？不可恢复。`)) return;
+    setBulkDeleting(true);
+    const { error } = await supabase
+      .from("fin_materials")
+      .delete()
+      .in("id", ids);
+    setBulkDeleting(false);
+    if (error) {
+      show("err", `批量删除失败：${error.message}`);
+      return;
+    }
+    show("ok", `已删除 ${ids.length} 条`);
+    clearSelection();
+    fetchData();
+  };
+
+  const exportSelected = () => {
+    const data = filtered.filter((r) => selectedIds.has(r.id));
+    if (data.length === 0) return;
+    const fname = `materials_selected_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "materials");
+    XLSX.writeFile(wb, fname);
+    show("ok", `已导出选中的 ${data.length} 条记录`);
+  };
 
   const startNew = () => setEditing({ ...EMPTY });
   const startEdit = (r: Material) => setEditing({ ...r });
@@ -467,8 +505,17 @@ export default function FinanceMaterialsPage() {
           </div>
         </div>
 
+        <BulkActionBar
+          count={selectedIds.size}
+          deleting={bulkDeleting}
+          onDelete={bulkDelete}
+          onExport={exportSelected}
+          onClear={clearSelection}
+        />
+
         <DataTable
           rows={filtered}
+          selection={selection}
           empty={loading ? "正在加载数据..." : "尚无原料，点击右上角「新建原料」"}
           columns={[
             {
