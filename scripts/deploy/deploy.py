@@ -334,15 +334,68 @@ def main():
     log_success("Docker 所有后端、沙箱、前端容器全量“终极重建”已成功拉起，持久化卷数据安然无恙！")
 
     # -------------------------------------------------------------
-    # 修复 Gotrue 启动冲突表 (自动清理 public.schema_migrations)
+    # GoTrue / LangGraph 迁移表冲突归位修复（幂等，可重复执行）
+    #
+    # 历史问题：GoTrue 曾以 supabase_admin 连库（search_path=public），其迁移
+    # 记录表落在 public.schema_migrations，与 LangGraph Server 的同名迁移表
+    # 互相覆盖，导致 gotrue 重启后无限崩溃。现 compose 已改用
+    # supabase_auth_admin（search_path=auth）。此步骤做一次性数据归位：
+    #   1. 同步 supabase_auth_admin 角色密码（与 POSTGRES_PASSWORD 一致）
+    #   2. 把 public.schema_migrations 中 GoTrue 格式的版本记录（14位时间戳）
+    #      搬回 auth.schema_migrations，然后删掉被污染的 public 表，
+    #      让 LangGraph 重启时按自己的格式重建，从此两者互不相干。
+    # 归位完成后该 SQL 不再命中任何数据，重复运行无副作用。
     # -------------------------------------------------------------
-    log_info("正在执行 Gotrue 数据库迁移冲突修复 (自动清理 public.schema_migrations)...")
-    db_clean_cmd = "docker exec -i supabase-postgres psql -U postgres -d postgres -c \"DROP TABLE IF EXISTS public.schema_migrations;\""
-    run_command(db_clean_cmd)
+    log_info("正在执行 GoTrue 迁移表归位修复 (public.schema_migrations -> auth.schema_migrations)...")
 
-    log_info("正在重新激活 Gotrue 服务生命周期...")
-    restart_gotrue_cmd = f"{compose_cmd} --env-file ../.env restart gotrue"
-    run_command(restart_gotrue_cmd, cwd=infra_dir)
+    postgres_password = ""
+    env_path = os.path.join(repo_root, ".env")
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("POSTGRES_PASSWORD="):
+                    postgres_password = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+    except OSError:
+        log_warn("未能读取 .env，跳过 supabase_auth_admin 密码同步。")
+
+    sql_parts = []
+    if postgres_password:
+        escaped_pw = postgres_password.replace("'", "''")
+        sql_parts.append(
+            f"ALTER ROLE supabase_auth_admin WITH LOGIN PASSWORD '{escaped_pw}';"
+        )
+    sql_parts.append(r"""
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'schema_migrations')
+     AND EXISTS (SELECT FROM public.schema_migrations WHERE version::text ~ '^\d{14}$') THEN
+    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'auth' AND tablename = 'schema_migrations') THEN
+      INSERT INTO auth.schema_migrations (version)
+      SELECT version::text FROM public.schema_migrations
+      WHERE version::text ~ '^\d{14}$'
+      ON CONFLICT DO NOTHING;
+    END IF;
+    DROP TABLE public.schema_migrations;
+  END IF;
+END $$;
+""")
+
+    sql_file = os.path.join(repo_root, "infra", ".gotrue-fix.tmp.sql")
+    with open(sql_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(sql_parts))
+
+    fix_cmd = f'docker exec -i supabase-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "{sql_file}"'
+    if not run_command(fix_cmd):
+        log_warn("迁移表归位 SQL 执行失败，请人工检查: docker logs supabase-gotrue")
+    try:
+        os.remove(sql_file)
+    except OSError:
+        pass
+
+    log_info("正在重启 gotrue 与 langgraph 以加载干净的迁移状态...")
+    run_command(f"{compose_cmd} --env-file ../.env restart gotrue langgraph", cwd=infra_dir)
 
     # -------------------------------------------------------------
 

@@ -38,7 +38,11 @@ services:
       API_EXTERNAL_URL: ${SITE_URL}
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://supabase_admin:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      # 必须用 supabase_auth_admin（search_path=auth）连接：GoTrue 的迁移记录表
+      # 会随 search_path 落到 auth.schema_migrations。若用 supabase_admin 则落到
+      # public.schema_migrations，与 LangGraph Server 的同名迁移表互相覆盖，
+      # 导致 gotrue 在容器重启后无限崩溃循环。
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@postgres:5432/postgres
       GOTRUE_SITE_URL: ${SITE_URL}
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_DISABLE_SIGNUP: "false"
