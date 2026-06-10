@@ -46,16 +46,51 @@ type Column<T> = {
   render: (row: T) => React.ReactNode;
 };
 
+export type RowSelection<T> = {
+  selectedIds: Set<string>;
+  getId: (row: T) => string;
+  onToggleRow: (id: string) => void;
+  onToggleAll: () => void;
+  allChecked: boolean;
+  someChecked: boolean;
+};
+
+function SelectAllCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+}) {
+  const ref = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      className="size-3.5 cursor-pointer accent-[var(--umx-acid)]"
+    />
+  );
+}
+
 export function DataTable<T>({
   columns,
   rows,
   empty = "无数据 / NO DATA",
   rowKey,
+  selection,
 }: {
   columns: Column<T>[];
   rows: T[];
   empty?: string;
   rowKey?: (row: T, i: number) => string | number;
+  selection?: RowSelection<T>;
 }) {
   return (
     <div className="border border-[var(--umx-line)] bg-[var(--umx-bg-1)]">
@@ -63,6 +98,15 @@ export function DataTable<T>({
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-[var(--umx-line)] bg-[var(--umx-bg-2)]">
+              {selection && (
+                <th className="px-4 py-3" style={{ width: "44px" }}>
+                  <SelectAllCheckbox
+                    checked={selection.allChecked}
+                    indeterminate={selection.someChecked && !selection.allChecked}
+                    onChange={selection.onToggleAll}
+                  />
+                </th>
+              )}
               {columns.map((c) => (
                 <th
                   key={c.key}
@@ -81,35 +125,56 @@ export function DataTable<T>({
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={columns.length + (selection ? 1 : 0)}
                   className="px-4 py-12 text-center font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--umx-text-dim)]"
                 >
                   {empty}
                 </td>
               </tr>
             ) : (
-              rows.map((r, i) => (
-                <tr
-                  key={
-                    rowKey
-                      ? rowKey(r, i)
-                      : ((r as { id?: string | number }).id ?? i)
-                  }
-                  className="border-b border-[var(--umx-line)] last:border-b-0 hover:bg-[var(--umx-bg-2)]/40"
-                >
-                  {columns.map((c) => (
-                    <td
-                      key={c.key}
-                      className={cn(
-                        "px-4 py-3 text-[13px] text-[var(--umx-white)]",
-                        c.className,
-                      )}
-                    >
-                      {c.render(r)}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              rows.map((r, i) => {
+                const rid = selection ? selection.getId(r) : null;
+                const isSelected =
+                  !!selection && rid !== null && selection.selectedIds.has(rid);
+                return (
+                  <tr
+                    key={
+                      rowKey
+                        ? rowKey(r, i)
+                        : ((r as { id?: string | number }).id ?? i)
+                    }
+                    className={cn(
+                      "border-b border-[var(--umx-line)] last:border-b-0 hover:bg-[var(--umx-bg-2)]/40",
+                      isSelected && "bg-[var(--umx-acid)]/5",
+                    )}
+                  >
+                    {selection && rid !== null && (
+                      <td
+                        className="px-4 py-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => selection.onToggleRow(rid)}
+                          className="size-3.5 cursor-pointer accent-[var(--umx-acid)]"
+                        />
+                      </td>
+                    )}
+                    {columns.map((c) => (
+                      <td
+                        key={c.key}
+                        className={cn(
+                          "px-4 py-3 text-[13px] text-[var(--umx-white)]",
+                          c.className,
+                        )}
+                      >
+                        {c.render(r)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
