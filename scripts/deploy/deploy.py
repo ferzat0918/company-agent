@@ -348,24 +348,17 @@ def main():
     # -------------------------------------------------------------
     log_info("正在执行 GoTrue 迁移表归位修复 (public.schema_migrations -> auth.schema_migrations)...")
 
-    postgres_password = ""
-    env_path = os.path.join(repo_root, ".env")
-    try:
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("POSTGRES_PASSWORD="):
-                    postgres_password = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-    except OSError:
-        log_warn("未能读取 .env，跳过 supabase_auth_admin 密码同步。")
-
-    sql_parts = []
-    if postgres_password:
-        escaped_pw = postgres_password.replace("'", "''")
-        sql_parts.append(
-            f"ALTER ROLE supabase_auth_admin WITH LOGIN PASSWORD '{escaped_pw}';"
-        )
+    # 密码同步必须以 supabase_admin（真正的超级用户）执行：
+    #   1. supabase 镜像的 supautils 扩展规定 supabase_auth_admin 是保留角色，
+    #      非超级用户（包括 postgres）一律不许修改，否则报 42501。
+    #   2. 直接复制 supabase_admin 的 SCRAM 密码哈希（哈希不含用户名，跨角色
+    #      复制有效），保证 supabase_auth_admin 的密码与 compose 注入给
+    #      GoTrue 的 ${POSTGRES_PASSWORD} 严格一致，无需解析 .env 明文。
+    sql_parts = [
+        "UPDATE pg_authid SET rolpassword = "
+        "(SELECT rolpassword FROM pg_authid WHERE rolname = 'supabase_admin') "
+        "WHERE rolname = 'supabase_auth_admin';"
+    ]
     sql_parts.append(r"""
 DO $$
 BEGIN
@@ -386,7 +379,7 @@ END $$;
     with open(sql_file, "w", encoding="utf-8") as f:
         f.write("\n".join(sql_parts))
 
-    fix_cmd = f'docker exec -i supabase-postgres psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "{sql_file}"'
+    fix_cmd = f'docker exec -i supabase-postgres psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres < "{sql_file}"'
     if not run_command(fix_cmd):
         log_warn("迁移表归位 SQL 执行失败，请人工检查: docker logs supabase-gotrue")
     try:
