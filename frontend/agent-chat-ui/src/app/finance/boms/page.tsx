@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
+import { readCsvText } from "@/lib/decode-csv";
 import {
   DataTable,
   FieldLabel,
@@ -110,7 +111,7 @@ export default function FinanceBomsPage() {
     try {
       let importedRows: any[] = [];
       if (file.name.toLowerCase().endsWith(".csv")) {
-        const text = await file.text();
+        const text = await readCsvText(file);
         const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
         importedRows = parsed.data;
       } else {

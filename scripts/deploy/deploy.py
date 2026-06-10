@@ -375,6 +375,29 @@ BEGIN
 END $$;
 """)
 
+    # auth schema 对象属主统一归 supabase_auth_admin（对齐 Supabase 官方布局）。
+    # 历史上 GoTrue 以 supabase_admin 跑迁移，建出的表（sessions/identities 等）
+    # 属主是 supabase_admin，切换角色后 GoTrue 无权读写 → 登录报
+    # "Database error querying schema"。且 GoTrue 未来的迁移要 ALTER 这些表，
+    # 仅 GRANT 不够，必须是属主。幂等：属主已正确时重复执行无副作用。
+    sql_parts.append(r"""
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'auth' LOOP
+    EXECUTE format('ALTER TABLE auth.%I OWNER TO supabase_auth_admin', r.tablename);
+  END LOOP;
+  FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'auth' LOOP
+    EXECUTE format('ALTER SEQUENCE auth.%I OWNER TO supabase_auth_admin', r.sequencename);
+  END LOOP;
+  FOR r IN SELECT t.typname FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE n.nspname = 'auth' AND t.typtype = 'e' LOOP
+    EXECUTE format('ALTER TYPE auth.%I OWNER TO supabase_auth_admin', r.typname);
+  END LOOP;
+END $$;
+GRANT USAGE, CREATE ON SCHEMA auth TO supabase_auth_admin;
+""")
+
     sql_file = os.path.join(repo_root, "infra", ".gotrue-fix.tmp.sql")
     with open(sql_file, "w", encoding="utf-8") as f:
         f.write("\n".join(sql_parts))
