@@ -9,6 +9,12 @@
 -- 已知坑:auth.users 的 token 类字段必须写 '' 而非 NULL,否则 GoTrue 扫描报错。
 -- 全部幂等,可重复执行。
 --
+-- ⚠ 为什么放在 manual/ 子目录:langgraph 容器启动时 backend/scripts/init_db.py 会以
+--   postgres 角色自动应用 infra/migrations/*.sql(只扫一层,不递归)。本迁移需要超级
+--   用户,postgres 跑会失败并把容器打进崩溃循环(2026-06-12 生产实测)。手工应用后请
+--   顺手 INSERT INTO public.app_migrations (migration_name)
+--   VALUES ('0004_admin_user_management.sql') 留档。
+--
 -- ⚠ 应用方式:必须以 supabase_admin(超级用户,5432 直连)执行,不能走 pg-meta /query。
 --   pg-meta 以 postgres 角色执行:函数 owner 会落成 postgres,而 postgres 写不了
 --   auth.users / auth.identities,RPC 运行时报 permission denied。下面的
