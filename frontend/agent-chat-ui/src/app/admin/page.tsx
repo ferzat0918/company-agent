@@ -903,45 +903,114 @@ function UserEditDrawer({
   item,
   onClose,
   onSave,
+  onDelete,
 }: {
   item: UserViewRow;
   onClose: () => void;
   onSave: (updated: UserViewRow) => void;
+  onDelete: (userId: string) => void;
 }) {
+  const [email, setEmail] = useState(item.email || "");
+  const [name, setName] = useState(item.name || "");
+  const [wechat, setWechat] = useState(item.wechat_nickname || "");
   const [dept, setDept] = useState(item.dept || "未分配");
   const [role, setRole] = useState(item.role || "普通用户");
   const [region, setRegion] = useState(item.region || "未分配");
+  const [financeAccess, setFinanceAccess] = useState(item.finance_access ?? false);
+  const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
+    setEmail(item.email || "");
+    setName(item.name || "");
+    setWechat(item.wechat_nickname || "");
     setDept(item.dept || "未分配");
     setRole(item.role || "普通用户");
     setRegion(item.region || "未分配");
+    setFinanceAccess(item.finance_access ?? false);
+    setNewPassword("");
   }, [item]);
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({
-        user_id: item.user_id,
-        dept,
-        role,
-        region,
+    // 邮箱变了走 RPC(动 auth.users),其余字段走 profiles
+    if (email.trim() && email.trim() !== (item.email || "")) {
+      const { error } = await supabase.rpc("admin_update_user_email", {
+        p_user_id: item.user_id,
+        p_new_email: email.trim(),
       });
+      if (error) {
+        setSaving(false);
+        alert("邮箱更新失败:" + error.message);
+        return;
+      }
+    }
+    const { error } = await supabase.from("profiles").upsert({
+      user_id: item.user_id,
+      dept,
+      role,
+      region,
+      name: name.trim(),
+      wechat_nickname: wechat.trim(),
+      finance_access: financeAccess,
+    });
     setSaving(false);
     if (!error) {
       onSave({
         ...item,
+        email: email.trim() || item.email,
         dept,
         role,
         region,
+        name: name.trim(),
+        wechat_nickname: wechat.trim(),
+        finance_access: financeAccess,
       });
       onClose();
     } else {
-      alert("更新失败，请重试！");
+      alert("更新失败:" + error.message);
     }
   };
+
+  const handleResetPassword = async () => {
+    if (newPassword.length < 6) { alert("密码至少 6 位"); return; }
+    setResetting(true);
+    const { error } = await supabase.rpc("admin_reset_password", {
+      p_user_id: item.user_id,
+      p_new_password: newPassword,
+    });
+    setResetting(false);
+    if (error) {
+      alert("重置失败:" + error.message);
+    } else {
+      alert("密码已重置");
+      setNewPassword("");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`确定要永久删除用户 ${item.email || item.user_id} 吗?此操作不可恢复!`)) return;
+    setDeleting(true);
+    const { error } = await supabase.rpc("admin_delete_user", {
+      p_user_id: item.user_id,
+    });
+    setDeleting(false);
+    if (error) {
+      alert("删除失败:" + error.message);
+    } else {
+      onDelete(item.user_id);
+      onClose();
+    }
+  };
+
+  const inputCls =
+    "w-full border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] transition-colors placeholder:text-[var(--umx-text-dim)]";
+  const labelCls =
+    "font-display text-[11px] font-bold text-white uppercase tracking-wider block";
+  const selectCls =
+    "w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer";
 
   return (
     <>
@@ -978,13 +1047,9 @@ function UserEditDrawer({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 umx-scrollbar">
-          {/* User ID & Email info */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 umx-scrollbar">
+          {/* User ID info */}
           <div className="border border-[var(--umx-line)] bg-black/20 p-4 font-mono text-[10px] space-y-2">
-            <div className="flex justify-between">
-              <span className="text-[var(--umx-text-dim)] uppercase">EMAIL ADDRESS:</span>
-              <span className="text-[var(--umx-silver)] select-all">{item.email || "Anonymous"}</span>
-            </div>
             <div className="flex justify-between">
               <span className="text-[var(--umx-text-dim)] uppercase">USER ID:</span>
               <span className="text-[var(--umx-text-dim)] select-all">{item.user_id}</span>
@@ -995,19 +1060,28 @@ function UserEditDrawer({
             </div>
           </div>
 
+          {/* Email */}
+          <div className="space-y-2">
+            <label className={labelCls}>登录邮箱 (EMAIL)</label>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} style={{ borderRadius: "2px" }} />
+          </div>
+
+          {/* Name + Wechat */}
+          <div className="space-y-2">
+            <label className={labelCls}>姓名 (NAME)</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="未填写" className={inputCls} style={{ borderRadius: "2px" }} />
+          </div>
+          <div className="space-y-2">
+            <label className={labelCls}>微信昵称 (WECHAT)</label>
+            <input value={wechat} onChange={(e) => setWechat(e.target.value)} placeholder="未填写" className={inputCls} style={{ borderRadius: "2px" }} />
+          </div>
+
           {/* Department Select */}
           <div className="space-y-2">
-            <label className="font-display text-[11px] font-bold text-white uppercase tracking-wider block">分配部门 (DEPARTMENT)</label>
+            <label className={labelCls}>分配部门 (DEPARTMENT)</label>
             <div className="relative">
-              <select
-                value={dept}
-                onChange={(e) => setDept(e.target.value)}
-                className="w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
-                style={{ borderRadius: "2px" }}
-              >
-                {DEPTS.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
+              <select value={dept} onChange={(e) => setDept(e.target.value)} className={selectCls} style={{ borderRadius: "2px" }}>
+                {DEPTS.map((d) => (<option key={d} value={d}>{d}</option>))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
             </div>
@@ -1015,17 +1089,10 @@ function UserEditDrawer({
 
           {/* Role Select */}
           <div className="space-y-2">
-            <label className="font-display text-[11px] font-bold text-white uppercase tracking-wider block">分配角色 (ROLE)</label>
+            <label className={labelCls}>分配角色 (ROLE)</label>
             <div className="relative">
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
-                style={{ borderRadius: "2px" }}
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
+              <select value={role} onChange={(e) => setRole(e.target.value)} className={selectCls} style={{ borderRadius: "2px" }}>
+                {ROLES.map((r) => (<option key={r} value={r}>{r}</option>))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
             </div>
@@ -1033,23 +1100,36 @@ function UserEditDrawer({
 
           {/* Region Select */}
           <div className="space-y-2">
-            <label className="font-display text-[11px] font-bold text-white uppercase tracking-wider block">所属地区 (REGION)</label>
+            <label className={labelCls}>所属地区 (REGION)</label>
             <div className="relative">
-              <select
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                className="w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer"
-                style={{ borderRadius: "2px" }}
-              >
-                {REGIONS.map((reg) => (
-                  <option key={reg} value={reg}>{reg}</option>
-                ))}
+              <select value={region} onChange={(e) => setRegion(e.target.value)} className={selectCls} style={{ borderRadius: "2px" }}>
+                {REGIONS.map((reg) => (<option key={reg} value={reg}>{reg}</option>))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Finance access toggle */}
+          <button
+            onClick={() => setFinanceAccess((v) => !v)}
+            className="flex w-full items-center justify-between border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-4 py-3 transition-colors hover:border-[var(--umx-acid)]"
+            style={{ borderRadius: "2px" }}
+          >
+            <span className="flex items-center gap-2 font-display text-[11px] font-bold text-white uppercase tracking-wider">
+              <Wallet className="size-3.5 text-[var(--umx-acid)]" />
+              财务工作台访问权 (FINANCE)
+            </span>
+            <span
+              className="px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider border"
+              style={financeAccess
+                ? { color: "var(--umx-acid)", borderColor: "rgba(218,252,8,0.4)", background: "rgba(218,252,8,0.06)", borderRadius: "2px" }
+                : { color: "var(--umx-text-dim)", borderColor: "var(--umx-line)", borderRadius: "2px" }}
+            >
+              {financeAccess ? "GRANTED" : "DENIED"}
+            </span>
+          </button>
+
+          {/* Save / Cancel */}
           <div className="pt-4 border-t border-[var(--umx-line)] flex gap-3">
             <button
               onClick={onClose}
@@ -1065,6 +1145,52 @@ function UserEditDrawer({
               style={{ borderRadius: "2px", cursor: saving ? "not-allowed" : "pointer" }}
             >
               {saving ? "SAVING..." : "保存变更"}
+            </button>
+          </div>
+
+          {/* Reset password */}
+          <div className="space-y-2 border-t border-[var(--umx-line)] pt-5">
+            <h5 className="flex items-center gap-1.5 font-display text-[11px] font-bold text-white uppercase tracking-wider">
+              <KeyRound className="size-3.5 text-[var(--umx-acid)]" />
+              重置密码 (RESET PASSWORD)
+            </h5>
+            <input
+              type="text"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="输入新密码(至少 6 位)"
+              className={inputCls}
+              style={{ borderRadius: "2px" }}
+            />
+            <button
+              onClick={handleResetPassword}
+              disabled={resetting || newPassword.length < 6}
+              className="flex w-full items-center justify-center gap-1.5 py-2.5 border border-[var(--umx-line)] hover:border-[var(--umx-acid)] hover:text-[var(--umx-acid)] font-mono text-[10px] uppercase tracking-widest text-[var(--umx-silver)] disabled:opacity-40 transition-all font-bold"
+              style={{ borderRadius: "2px", cursor: resetting || newPassword.length < 6 ? "not-allowed" : "pointer" }}
+            >
+              {resetting ? "RESETTING..." : "确认重置密码"}
+            </button>
+          </div>
+
+          {/* Danger zone */}
+          <div className="space-y-2 border-t border-[var(--umx-line)] pt-5">
+            <h5 className="flex items-center gap-1.5 font-display text-[11px] font-bold text-[#ff6b6b] uppercase tracking-wider">
+              <Trash2 className="size-3.5" />
+              危险操作 (DANGER ZONE)
+            </h5>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex w-full items-center justify-center gap-1.5 py-2.5 border font-mono text-[10px] uppercase tracking-widest disabled:opacity-40 transition-all font-bold"
+              style={{
+                borderRadius: "2px",
+                color: "#ff6b6b",
+                borderColor: "rgba(255,107,107,0.4)",
+                background: "rgba(255,107,107,0.06)",
+                cursor: deleting ? "not-allowed" : "pointer",
+              }}
+            >
+              {deleting ? "DELETING..." : "永久删除该用户"}
             </button>
           </div>
         </div>
@@ -1609,6 +1735,10 @@ function AdminContent() {
     setUsersData((prev) =>
       prev.map((u) => (u.user_id === updated.user_id ? updated : u))
     );
+  };
+
+  const handleUserDelete = (userId: string) => {
+    setUsersData((prev) => prev.filter((u) => u.user_id !== userId));
   };
 
   /* 更新日志相关的 CRUD 处理逻辑（含中文友好反馈） */
@@ -2445,6 +2575,7 @@ function AdminContent() {
             item={selectedUser}
             onClose={() => setSelectedUser(null)}
             onSave={handleUserSave}
+            onDelete={handleUserDelete}
           />
         )}
       </AnimatePresence>
