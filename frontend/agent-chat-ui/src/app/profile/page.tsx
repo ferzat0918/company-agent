@@ -40,6 +40,7 @@ type ProfileRow = {
   region: string | null;
   name: string | null;
   wechat_nickname: string | null;
+  finance_access: boolean | null;
 };
 
 function SectionLabel({ index, title }: { index: string; title: string }) {
@@ -483,10 +484,11 @@ function AdminCard() {
   );
 }
 
-/* ── Finance entry (only visible to 财务部 / 系统管理员) ────── */
+/* ── Finance entry (only visible to 获授权用户 / 系统管理员) ────── */
 
 function FinanceCard({ profile }: { profile: ProfileRow | null }) {
-  const isFinance = profile?.dept === "财务部" || profile?.role === "系统管理员";
+  const isFinance =
+    profile?.finance_access === true || profile?.role === "系统管理员";
   if (!isFinance) return null;
 
   return (
@@ -519,7 +521,7 @@ function ProfileContent() {
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, dept, role, region, name, wechat_nickname")
+        .select("user_id, dept, role, region, name, wechat_nickname, finance_access")
         .eq("user_id", user.id)
         .maybeSingle();
       if (!cancelled && data) setProfile(data as ProfileRow);

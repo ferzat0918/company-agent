@@ -16,6 +16,7 @@ type FinanceProfile = {
   user_id: string;
   dept: string | null;
   role: string | null;
+  finance_access: boolean | null;
 };
 
 const FinanceProfileContext = createContext<FinanceProfile | null>(null);
@@ -95,7 +96,7 @@ function FinanceForbidden() {
         ACCESS DENIED
       </h1>
       <p className="mb-1 max-w-md font-body text-sm leading-relaxed text-[var(--umx-silver)]">
-        财务工作台仅向 <span className="text-[var(--umx-acid)]">财务部</span> 与{" "}
+        财务工作台仅向 <span className="text-[var(--umx-acid)]">获授权用户</span> 与{" "}
         <span className="text-[var(--umx-acid)]">系统管理员</span> 开放。
       </p>
       <p className="mb-8 max-w-md font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--umx-text-dim)]">
@@ -142,7 +143,7 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, dept, role")
+        .select("user_id, dept, role, finance_access")
         .eq("user_id", user.id)
         .maybeSingle();
       if (!cancelled) {
@@ -159,7 +160,7 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
   if (!session) return <LoginPage />;
 
   const isFinance =
-    profile?.dept === "财务部" || profile?.role === "系统管理员";
+    profile?.finance_access === true || profile?.role === "系统管理员";
   if (!isFinance) return <FinanceForbidden />;
 
   return (
