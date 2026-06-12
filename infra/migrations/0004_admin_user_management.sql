@@ -8,6 +8,12 @@
 --
 -- 已知坑:auth.users 的 token 类字段必须写 '' 而非 NULL,否则 GoTrue 扫描报错。
 -- 全部幂等,可重复执行。
+--
+-- ⚠ 应用方式:必须以 supabase_admin(超级用户,5432 直连)执行,不能走 pg-meta /query。
+--   pg-meta 以 postgres 角色执行:函数 owner 会落成 postgres,而 postgres 写不了
+--   auth.users / auth.identities,RPC 运行时报 permission denied。下面的
+--   ALTER FUNCTION ... OWNER TO supabase_admin 在走错路径时会直接报错,算是保险丝。
+-- 前置依赖:public.is_system_admin()(infra/init-rls-hardening.sql,2026-06-12 已补到生产)。
 
 -- ─────────────────────────────────────────────────────────────
 -- 1. finance_access 列(回填只在列首次创建时执行一次,
@@ -139,6 +145,7 @@ BEGIN
 END;
 $$;
 
+ALTER FUNCTION public.admin_create_user(text,text,text,text,text,text,text,boolean) OWNER TO supabase_admin;
 REVOKE ALL ON FUNCTION public.admin_create_user(text,text,text,text,text,text,text,boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_create_user(text,text,text,text,text,text,text,boolean) TO authenticated;
 
@@ -181,6 +188,7 @@ BEGIN
 END;
 $$;
 
+ALTER FUNCTION public.admin_update_user_email(uuid,text) OWNER TO supabase_admin;
 REVOKE ALL ON FUNCTION public.admin_update_user_email(uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_update_user_email(uuid,text) TO authenticated;
 
@@ -213,6 +221,7 @@ BEGIN
 END;
 $$;
 
+ALTER FUNCTION public.admin_reset_password(uuid,text) OWNER TO supabase_admin;
 REVOKE ALL ON FUNCTION public.admin_reset_password(uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_reset_password(uuid,text) TO authenticated;
 
@@ -241,6 +250,7 @@ BEGIN
 END;
 $$;
 
+ALTER FUNCTION public.admin_delete_user(uuid) OWNER TO supabase_admin;
 REVOKE ALL ON FUNCTION public.admin_delete_user(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_delete_user(uuid) TO authenticated;
 
