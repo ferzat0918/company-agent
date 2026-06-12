@@ -111,9 +111,12 @@ BEGIN
     phone_change, phone_change_token, reauthentication_token,
     is_super_admin
   ) VALUES (
+    -- aud 必须是 ''(空串):本部署 GoTrue 未配 JWT_AUD,按 aud 过滤查用户,
+    -- 写 'authenticated' 会导致登录报 invalid_credentials(2026-06-12 实测)。
+    -- bf,10 与 GoTrue 自产哈希的 cost 一致。
     '00000000-0000-0000-0000-000000000000', v_user_id,
-    'authenticated', 'authenticated',
-    lower(p_email), crypt(p_password, gen_salt('bf')),
+    '', 'authenticated',
+    lower(p_email), crypt(p_password, gen_salt('bf', 10)),
     now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
     now(), now(),
     '', '', '', '', '', '', '', '',
