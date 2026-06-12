@@ -10,7 +10,8 @@ import {
   Download, ChevronDown, Shield, MessageSquare, Save, X, Trash2, Timer,
   Copy, Sparkles, DownloadCloud, FileJson, CheckSquare, Square, Info,
   Users, UserCheck, ShieldAlert, MapPin, Building,
-  Terminal, Plus, RefreshCw, MessageSquareCode
+  Terminal, Plus, RefreshCw, MessageSquareCode,
+  UserPlus, KeyRound, Wallet
 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/providers/Auth";
 import { supabase, supabaseAnonKey } from "@/lib/supabase";
@@ -56,6 +57,9 @@ type UserViewRow = {
   dept: string;
   role: string;
   region: string;
+  name: string;
+  wechat_nickname: string;
+  finance_access: boolean;
 };
 
 const DEPTS = ["研发部", "产品设计部", "市场运营部", "客户成功部", "财务部", "未分配"];
@@ -726,6 +730,173 @@ function DetailDrawer({
   );
 }
 
+/* ── User Create Drawer ──────────────────────────────────────── */
+
+function UserCreateDrawer({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [wechat, setWechat] = useState("");
+  const [dept, setDept] = useState("未分配");
+  const [role, setRole] = useState("普通用户");
+  const [region, setRegion] = useState("未分配");
+  const [financeAccess, setFinanceAccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleCreate = async () => {
+    if (!email.trim()) { alert("请填写邮箱"); return; }
+    if (password.length < 6) { alert("密码至少 6 位"); return; }
+    setSaving(true);
+    const { error } = await supabase.rpc("admin_create_user", {
+      p_email: email.trim(),
+      p_password: password,
+      p_dept: dept,
+      p_role: role,
+      p_region: region,
+      p_name: name.trim(),
+      p_wechat_nickname: wechat.trim(),
+      p_finance_access: financeAccess,
+    });
+    setSaving(false);
+    if (error) {
+      alert("创建失败:" + error.message);
+    } else {
+      onCreated();
+      onClose();
+    }
+  };
+
+  const inputCls =
+    "w-full border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] transition-colors placeholder:text-[var(--umx-text-dim)]";
+  const labelCls =
+    "font-display text-[11px] font-bold text-white uppercase tracking-wider block";
+  const selectCls =
+    "w-full appearance-none border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--umx-white)] outline-none focus:border-[var(--umx-acid)] cursor-pointer";
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="fixed bottom-0 right-0 top-0 z-50 flex h-full w-[450px] max-w-full flex-col border-l border-[var(--umx-line)] bg-[var(--umx-bg-1)] shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-[var(--umx-line)] px-6 py-5 bg-[var(--umx-bg-0)]">
+          <div className="flex items-center gap-2">
+            <UserPlus size={20} className="text-[var(--umx-acid)]" />
+            <span className="font-mono text-[10px] tracking-[0.2em] text-[var(--umx-white)] uppercase">CREATE NEW USER</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex size-8 items-center justify-center border border-[var(--umx-line)] text-[var(--umx-text-dim)] hover:border-[var(--umx-acid)] hover:text-[var(--umx-acid)] transition-colors"
+            style={{ borderRadius: "2px" }}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5 umx-scrollbar">
+          <div className="space-y-2">
+            <label className={labelCls}>登录邮箱 (EMAIL) *</label>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@example.com" className={inputCls} style={{ borderRadius: "2px" }} />
+          </div>
+          <div className="space-y-2">
+            <label className={labelCls}>初始密码 (PASSWORD, ≥6 位) *</label>
+            <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="至少 6 位" className={inputCls} style={{ borderRadius: "2px" }} />
+          </div>
+          <div className="space-y-2">
+            <label className={labelCls}>姓名 (NAME)</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="选填" className={inputCls} style={{ borderRadius: "2px" }} />
+          </div>
+          <div className="space-y-2">
+            <label className={labelCls}>微信昵称 (WECHAT)</label>
+            <input value={wechat} onChange={(e) => setWechat(e.target.value)} placeholder="选填" className={inputCls} style={{ borderRadius: "2px" }} />
+          </div>
+          <div className="space-y-2">
+            <label className={labelCls}>分配部门 (DEPARTMENT)</label>
+            <div className="relative">
+              <select value={dept} onChange={(e) => setDept(e.target.value)} className={selectCls} style={{ borderRadius: "2px" }}>
+                {DEPTS.map((d) => (<option key={d} value={d}>{d}</option>))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className={labelCls}>分配角色 (ROLE)</label>
+            <div className="relative">
+              <select value={role} onChange={(e) => setRole(e.target.value)} className={selectCls} style={{ borderRadius: "2px" }}>
+                {ROLES.map((r) => (<option key={r} value={r}>{r}</option>))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className={labelCls}>所属地区 (REGION)</label>
+            <div className="relative">
+              <select value={region} onChange={(e) => setRegion(e.target.value)} className={selectCls} style={{ borderRadius: "2px" }}>
+                {REGIONS.map((reg) => (<option key={reg} value={reg}>{reg}</option>))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--umx-text-dim)] pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Finance access toggle */}
+          <button
+            onClick={() => setFinanceAccess((v) => !v)}
+            className="flex w-full items-center justify-between border border-[var(--umx-line)] bg-[var(--umx-bg-2)] px-4 py-3 transition-colors hover:border-[var(--umx-acid)]"
+            style={{ borderRadius: "2px" }}
+          >
+            <span className="flex items-center gap-2 font-display text-[11px] font-bold text-white uppercase tracking-wider">
+              <Wallet className="size-3.5 text-[var(--umx-acid)]" />
+              财务工作台访问权 (FINANCE)
+            </span>
+            <span
+              className="px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider border"
+              style={financeAccess
+                ? { color: "var(--umx-acid)", borderColor: "rgba(218,252,8,0.4)", background: "rgba(218,252,8,0.06)", borderRadius: "2px" }
+                : { color: "var(--umx-text-dim)", borderColor: "var(--umx-line)", borderRadius: "2px" }}
+            >
+              {financeAccess ? "GRANTED" : "DENIED"}
+            </span>
+          </button>
+
+          <div className="pt-4 border-t border-[var(--umx-line)] flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-[var(--umx-line)] hover:border-white font-mono text-[10px] uppercase tracking-widest text-[var(--umx-silver)] transition-all font-bold"
+              style={{ borderRadius: "2px" }}
+            >
+              取消
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={saving}
+              className="flex-1 py-2.5 font-mono text-[10px] uppercase tracking-widest text-black bg-[var(--umx-acid)] hover:bg-white disabled:bg-[var(--umx-line)] disabled:text-[var(--umx-text-dim)] transition-all font-bold"
+              style={{ borderRadius: "2px", cursor: saving ? "not-allowed" : "pointer" }}
+            >
+              {saving ? "CREATING..." : "创建用户"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 /* ── User Edit Drawer Slider ─────────────────────────────────────── */
 
 function UserEditDrawer({
@@ -1182,6 +1353,7 @@ function AdminContent() {
   const [userFilterRole, setUserFilterRole] = useState<string>("all");
   const [userSortByDate, setUserSortByDate] = useState<"desc" | "asc">("desc");
   const [selectedUser, setSelectedUser] = useState<UserViewRow | null>(null);
+  const [createUserOpen, setCreateUserOpen] = useState(false);
 
   /* Changelog management state */
   const [changelogs, setChangelogs] = useState<any[]>([]);
@@ -1914,6 +2086,14 @@ function AdminContent() {
               {/* Exporter Buttons */}
               <div className="ml-auto flex items-center gap-2">
                 <button
+                  onClick={() => setCreateUserOpen(true)}
+                  className="flex items-center gap-1.5 border border-[var(--umx-acid)] hover:bg-[var(--umx-acid)] hover:text-black text-[var(--umx-acid)] px-2.5 py-2 font-mono text-[9px] uppercase tracking-wider font-bold transition-all"
+                  style={{ borderRadius: "2px" }}
+                >
+                  <UserPlus className="size-3" />
+                  新建用户
+                </button>
+                <button
                   onClick={exportUsersCSV}
                   className="flex items-center gap-1 border border-[var(--umx-line)] hover:border-white px-2.5 py-2 font-mono text-[9px] tracking-wider text-[var(--umx-silver)] uppercase transition-colors"
                   style={{ borderRadius: "2px" }}
@@ -1956,6 +2136,7 @@ function AdminContent() {
                       <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">DEPARTMENT</th>
                       <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">ROLE</th>
                       <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">REGION</th>
+                      <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">FINANCE</th>
                       <th className="px-6 py-3 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--umx-text-dim)]">REGISTERED DATE</th>
                     </tr>
                   </thead>
@@ -1993,6 +2174,16 @@ function AdminContent() {
                               <MapPin className="size-2.5 text-[#7201FF]" />
                               {userRow.region || "未分配"}
                             </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            {userRow.finance_access ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider border text-[var(--umx-acid)]" style={{ background: "rgba(218,252,8,0.03)", borderColor: "rgba(218,252,8,0.2)", borderRadius: "2px" }}>
+                                <Wallet className="size-2.5" />
+                                GRANTED
+                              </span>
+                            ) : (
+                              <span className="font-mono text-[9px] uppercase tracking-wider text-[var(--umx-text-dim)]">—</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 font-mono text-[10px] text-[var(--umx-text-dim)]">
                             {formatDate(userRow.registered_at)}
@@ -2254,6 +2445,16 @@ function AdminContent() {
             item={selectedUser}
             onClose={() => setSelectedUser(null)}
             onSave={handleUserSave}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Slide-over User Create Drawer Panel */}
+      <AnimatePresence>
+        {createUserOpen && (
+          <UserCreateDrawer
+            onClose={() => setCreateUserOpen(false)}
+            onCreated={fetchUsers}
           />
         )}
       </AnimatePresence>
