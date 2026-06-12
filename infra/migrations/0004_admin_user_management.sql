@@ -215,7 +215,7 @@ BEGIN
   END IF;
 
   UPDATE auth.users
-  SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+  SET encrypted_password = crypt(p_new_password, gen_salt('bf', 10)),
       updated_at = now()
   WHERE id = p_user_id;
   IF NOT FOUND THEN
